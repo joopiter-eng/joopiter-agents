@@ -217,16 +217,34 @@ const StreamingStatusBar = memo(function StreamingStatusBar({
   );
 });
 
+const InterruptedIndicator = memo(function InterruptedIndicator() {
+  return (
+    <Box marginLeft={2}>
+      <Text color="gray">└ </Text>
+      <Text color="yellow">Interrupted</Text>
+      <Text color="gray"> · What should the agent do instead?</Text>
+    </Box>
+  );
+});
+
 export function App({ options }: AppProps) {
   const { exit } = useApp();
   const { chat, state, cycleAutoAcceptMode } = useChatContext();
   const [startTime, setStartTime] = useState<number | null>(null);
+  const [wasInterrupted, setWasInterrupted] = useState(false);
 
   const { messages, sendMessage, status, stop, error } = useChat({
     chat,
   });
 
   const isStreaming = status === "streaming" || status === "submitted";
+
+  // Clear interrupted state when streaming starts
+  useEffect(() => {
+    if (isStreaming) {
+      setWasInterrupted(false);
+    }
+  }, [isStreaming]);
 
   const { hasPendingApproval, activeApprovalId } = useMemo(() => {
     const lastMessage = messages[messages.length - 1];
@@ -245,12 +263,9 @@ export function App({ options }: AppProps) {
   }, [messages]);
 
   useInput((input, key) => {
-    if (key.escape) {
-      if (isStreaming) {
-        stop();
-      } else {
-        exit();
-      }
+    if (key.escape && isStreaming) {
+      stop();
+      setWasInterrupted(true);
     }
     if (input === "c" && key.ctrl) {
       stop();
@@ -285,6 +300,8 @@ export function App({ options }: AppProps) {
       />
 
       <MessagesList messages={messages} activeApprovalId={activeApprovalId} />
+
+      {wasInterrupted && !isStreaming && <InterruptedIndicator />}
 
       <ErrorDisplay error={error} />
 

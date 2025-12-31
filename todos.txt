@@ -12,3 +12,4 @@
 - [ ] implement reasoning support (ui and provider options)
 - [ ] add approved commands (auto approve for similar commands)
 - [ ] cancel requests with esc
+- [ ] audit the input implementation (suggestions not working and missing chars)

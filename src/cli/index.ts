@@ -40,6 +40,10 @@ async function main() {
       },
     });
   } catch (error) {
+    // Ignore abort errors from ESC key interrupts
+    if (error instanceof Error && error.name === "AbortError") {
+      return;
+    }
     console.error("Error:", error instanceof Error ? error.message : error);
     process.exit(1);
   }

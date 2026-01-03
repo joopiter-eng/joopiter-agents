@@ -2,11 +2,13 @@ import React from "react";
 import { render } from "ink";
 import { App } from "./app.js";
 import { ChatProvider } from "./chat-context.js";
+import { ReasoningProvider } from "./reasoning-context.js";
 import { tuiAgentModelId, createDefaultAgentOptions } from "./config.js";
 import type { TUIOptions } from "./types.js";
 
 export type { TUIOptions, AutoAcceptMode } from "./types.js";
 export { useChatContext, ChatProvider } from "./chat-context.js";
+export { useReasoningContext, ReasoningProvider } from "./reasoning-context.js";
 export {
   tuiAgent,
   tuiAgentModelId,
@@ -43,7 +45,9 @@ export async function createTUI(options: TUIOptions): Promise<void> {
       model={options.header?.model ?? tuiAgentModelId}
       workingDirectory={options.workingDirectory}
     >
-      <App options={options} />
+      <ReasoningProvider>
+        <App options={options} />
+      </ReasoningProvider>
     </ChatProvider>,
   );
 
@@ -65,7 +69,9 @@ export function renderTUI(options: TUIOptions) {
       model={options.header?.model ?? tuiAgentModelId}
       workingDirectory={options.workingDirectory}
     >
-      <App options={options} />
+      <ReasoningProvider>
+        <App options={options} />
+      </ReasoningProvider>
     </ChatProvider>,
   );
 }

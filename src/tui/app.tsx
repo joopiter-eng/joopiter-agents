@@ -7,11 +7,13 @@ import {
 import { useChat } from "@ai-sdk/react";
 import { renderMarkdown } from "./lib/markdown.js";
 import { useChatContext } from "./chat-context.js";
+import { useReasoningContext } from "./reasoning-context.js";
 import { ToolCall } from "./components/tool-call.js";
 import { TaskGroupView } from "./components/task-group-view.js";
 import { StatusBar } from "./components/status-bar.js";
 import { InputBox } from "./components/input-box.js";
 import { Header } from "./components/header.js";
+import { ReasoningBlock } from "./components/reasoning-block.js";
 import { pasteCollapseLineThreshold, tuiAgentModelId } from "./config.js";
 import type {
   TUIOptions,
@@ -34,13 +36,42 @@ const TextPart = memo(function TextPart({ text }: { text: string }) {
   );
 });
 
-const ReasoningPart = memo(function ReasoningPart({ text }: { text: string }) {
+type ReasoningPartWrapperProps = {
+  text: string;
+  messageId: string;
+  isStreaming: boolean;
+};
+
+const ReasoningPartWrapper = memo(function ReasoningPartWrapper({
+  text,
+  messageId,
+  isStreaming,
+}: ReasoningPartWrapperProps) {
+  const { isExpanded, startReasoning, endReasoning, getReasoningDuration } =
+    useReasoningContext();
+
+  // Track reasoning timing
+  useEffect(() => {
+    if (text) {
+      startReasoning(messageId);
+    }
+  }, [messageId, text, startReasoning]);
+
+  // Mark reasoning as ended when no longer streaming
+  useEffect(() => {
+    if (!isStreaming && text) {
+      endReasoning(messageId);
+    }
+  }, [isStreaming, messageId, text, endReasoning]);
+
+  const durationSeconds = getReasoningDuration(messageId);
+
   return (
-    <Box marginLeft={2}>
-      <Text color="gray" dimColor wrap="wrap">
-        {text}
-      </Text>
-    </Box>
+    <ReasoningBlock
+      text={text}
+      durationSeconds={durationSeconds}
+      isExpanded={isExpanded}
+    />
   );
 });
 
@@ -54,11 +85,19 @@ function ToolPartWrapper({
   return <ToolCall part={part} activeApprovalId={activeApprovalId} />;
 }
 
+type RenderPartOptions = {
+  activeApprovalId: string | null;
+  messageId: string;
+  isStreaming: boolean;
+};
+
 function renderPart(
   part: TUIAgentUIMessagePart,
   key: string,
-  activeApprovalId: string | null,
+  options: RenderPartOptions,
 ) {
+  const { activeApprovalId, messageId, isStreaming } = options;
+
   if (isToolUIPart(part)) {
     return (
       <ToolPartWrapper key={key} part={part} activeApprovalId={activeApprovalId} />
@@ -72,7 +111,14 @@ function renderPart(
 
     case "reasoning":
       if (!part.text) return null;
-      return <ReasoningPart key={key} text={part.text} />;
+      return (
+        <ReasoningPartWrapper
+          key={key}
+          text={part.text}
+          messageId={messageId}
+          isStreaming={isStreaming}
+        />
+      );
 
     default:
       return null;
@@ -109,9 +155,11 @@ type RenderGroup =
 const AssistantMessage = memo(function AssistantMessage({
   message,
   activeApprovalId,
+  isStreaming,
 }: {
   message: TUIAgentUIMessage;
   activeApprovalId: string | null;
+  isStreaming: boolean;
 }) {
   // Group consecutive task parts together, keeping them in linear order
   const renderGroups = useMemo(() => {
@@ -165,11 +213,11 @@ const AssistantMessage = memo(function AssistantMessage({
             />
           );
         }
-        return renderPart(
-          group.part,
-          `${message.id}-${group.index}`,
-          activeApprovalId
-        );
+        return renderPart(group.part, `${message.id}-${group.index}`, {
+          activeApprovalId,
+          messageId: message.id,
+          isStreaming,
+        });
       })}
     </Box>
   );
@@ -178,16 +226,22 @@ const AssistantMessage = memo(function AssistantMessage({
 const Message = memo(function Message({
   message,
   activeApprovalId,
+  isStreaming,
 }: {
   message: TUIAgentUIMessage;
   activeApprovalId: string | null;
+  isStreaming: boolean;
 }) {
   if (message.role === "user") {
     return <UserMessage message={message} />;
   }
   if (message.role === "assistant") {
     return (
-      <AssistantMessage message={message} activeApprovalId={activeApprovalId} />
+      <AssistantMessage
+        message={message}
+        activeApprovalId={activeApprovalId}
+        isStreaming={isStreaming}
+      />
     );
   }
   return null;
@@ -196,17 +250,20 @@ const Message = memo(function Message({
 const MessagesList = memo(function MessagesList({
   messages,
   activeApprovalId,
+  isStreaming,
 }: {
   messages: TUIAgentUIMessage[];
   activeApprovalId: string | null;
+  isStreaming: boolean;
 }) {
   return (
     <Box flexDirection="column">
-      {messages.map((message) => (
+      {messages.map((message, index) => (
         <Message
           key={message.id}
           message={message}
           activeApprovalId={activeApprovalId}
+          isStreaming={isStreaming && index === messages.length - 1}
         />
       ))}
     </Box>
@@ -285,9 +342,10 @@ const InterruptedIndicator = memo(function InterruptedIndicator() {
   );
 });
 
-export function App({ options }: AppProps) {
+function AppContent({ options }: AppProps) {
   const { exit } = useApp();
   const { chat, state, cycleAutoAcceptMode } = useChatContext();
+  const { toggleExpanded } = useReasoningContext();
   const [startTime, setStartTime] = useState<number | null>(null);
   const [wasInterrupted, setWasInterrupted] = useState(false);
 
@@ -329,6 +387,10 @@ export function App({ options }: AppProps) {
       stop();
       exit();
     }
+    // Toggle reasoning visibility with ctrl+p
+    if (input === "p" && key.ctrl) {
+      toggleExpanded();
+    }
   });
 
   useEffect(() => {
@@ -357,7 +419,11 @@ export function App({ options }: AppProps) {
         cwd={state.workingDirectory}
       />
 
-      <MessagesList messages={messages} activeApprovalId={activeApprovalId} />
+      <MessagesList
+        messages={messages}
+        activeApprovalId={activeApprovalId}
+        isStreaming={isStreaming}
+      />
 
       {wasInterrupted && !isStreaming && <InterruptedIndicator />}
 
@@ -380,4 +446,8 @@ export function App({ options }: AppProps) {
       )}
     </Box>
   );
+}
+
+export function App({ options }: AppProps) {
+  return <AppContent options={options} />;
 }

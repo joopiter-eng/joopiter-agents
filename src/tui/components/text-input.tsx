@@ -275,7 +275,8 @@ export function TextInput({
 
       // Handle Ctrl+P - let parent intercept if needed
       if (key.ctrl && input === "p") {
-        if (onCtrlP?.()) return;
+        onCtrlP?.();
+        return; // Always consume ctrl+p to prevent inserting 'p'
       }
 
       // Ignore certain key combinations

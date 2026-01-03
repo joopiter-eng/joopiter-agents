@@ -1,14 +1,8 @@
 import { tool } from "ai";
 import { z } from "zod";
-import * as fs from "fs/promises";
 import * as path from "path";
 import type { AgentContext } from "../../types";
-
-function isPathWithinDirectory(filePath: string, directory: string): boolean {
-  const resolvedPath = path.resolve(filePath);
-  const resolvedDir = path.resolve(directory);
-  return resolvedPath.startsWith(resolvedDir + path.sep) || resolvedPath === resolvedDir;
-}
+import { isPathWithinDirectory } from "../../utils";
 
 const writeInputSchema = z.object({
   filePath: z.string().describe("Absolute path to the file to write"),
@@ -74,6 +68,7 @@ EXAMPLES:
   execute: async ({ filePath, content }, { experimental_context }) => {
     const context = experimental_context as AgentContext;
     const workingDirectory = context?.workingDirectory ?? process.cwd();
+    const { sandbox } = context;
 
     try {
       const absolutePath = path.isAbsolute(filePath)
@@ -89,10 +84,10 @@ EXAMPLES:
       }
 
       const dir = path.dirname(absolutePath);
-      await fs.mkdir(dir, { recursive: true });
-      await fs.writeFile(absolutePath, content, "utf-8");
+      await sandbox.mkdir(dir, { recursive: true });
+      await sandbox.writeFile(absolutePath, content, "utf-8");
 
-      const stats = await fs.stat(absolutePath);
+      const stats = await sandbox.stat(absolutePath);
 
       return {
         success: true,
@@ -142,6 +137,7 @@ EXAMPLES:
   execute: async ({ filePath, oldString, newString, replaceAll = false }, { experimental_context }) => {
     const context = experimental_context as AgentContext;
     const workingDirectory = context?.workingDirectory ?? process.cwd();
+    const { sandbox } = context;
 
     try {
       if (oldString === newString) {
@@ -163,7 +159,7 @@ EXAMPLES:
         };
       }
 
-      const content = await fs.readFile(absolutePath, "utf-8");
+      const content = await sandbox.readFile(absolutePath, "utf-8");
 
       if (!content.includes(oldString)) {
         return {
@@ -185,7 +181,7 @@ EXAMPLES:
         ? content.replaceAll(oldString, newString)
         : content.replace(oldString, newString);
 
-      await fs.writeFile(absolutePath, newContent, "utf-8");
+      await sandbox.writeFile(absolutePath, newContent, "utf-8");
 
       return {
         success: true,

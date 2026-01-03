@@ -1,14 +1,9 @@
 import { tool } from "ai";
 import { z } from "zod";
-import * as fs from "fs/promises";
 import * as path from "path";
 import type { AgentContext } from "../../types";
-
-function isPathWithinDirectory(filePath: string, directory: string): boolean {
-  const resolvedPath = path.resolve(filePath);
-  const resolvedDir = path.resolve(directory);
-  return resolvedPath.startsWith(resolvedDir + path.sep) || resolvedPath === resolvedDir;
-}
+import type { Sandbox } from "../../sandbox";
+import { isPathWithinDirectory } from "../../utils";
 
 interface GrepMatch {
   file: string;
@@ -19,10 +14,11 @@ interface GrepMatch {
 async function grepFile(
   filePath: string,
   pattern: RegExp,
-  maxMatchesPerFile: number
+  maxMatchesPerFile: number,
+  sandbox: Sandbox
 ): Promise<GrepMatch[]> {
   try {
-    const content = await fs.readFile(filePath, "utf-8");
+    const content = await sandbox.readFile(filePath, "utf-8");
     const lines = content.split("\n");
     const matches: GrepMatch[] = [];
 
@@ -45,13 +41,14 @@ async function grepFile(
 
 async function walkDirectory(
   dir: string,
-  glob?: string
+  glob: string | undefined,
+  sandbox: Sandbox
 ): Promise<string[]> {
   const files: string[] = [];
 
   async function walk(currentDir: string) {
     try {
-      const entries = await fs.readdir(currentDir, { withFileTypes: true });
+      const entries = await sandbox.readdir(currentDir, { withFileTypes: true });
 
       for (const entry of entries) {
         const fullPath = path.join(currentDir, entry.name);
@@ -134,6 +131,7 @@ EXAMPLES:
   }, { experimental_context }) => {
     const context = experimental_context as AgentContext;
     const workingDirectory = context?.workingDirectory ?? process.cwd();
+    const { sandbox } = context;
 
     try {
       const flags = caseSensitive ? "g" : "gi";
@@ -151,11 +149,11 @@ EXAMPLES:
         };
       }
 
-      const stats = await fs.stat(absolutePath);
+      const stats = await sandbox.stat(absolutePath);
       let files: string[];
 
       if (stats.isDirectory()) {
-        files = await walkDirectory(absolutePath, glob);
+        files = await walkDirectory(absolutePath, glob, sandbox);
       } else {
         files = [absolutePath];
       }
@@ -169,7 +167,7 @@ EXAMPLES:
 
         const remaining = maxTotal - allMatches.length;
         const limit = Math.min(maxPerFile, remaining);
-        const matches = await grepFile(file, regex, limit);
+        const matches = await grepFile(file, regex, limit, sandbox);
         allMatches.push(...matches);
       }
 

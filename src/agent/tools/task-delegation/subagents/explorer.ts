@@ -4,6 +4,7 @@ import { readFileTool } from "../../file-system/read";
 import { grepTool } from "../../file-system/grep";
 import { globTool } from "../../file-system/glob";
 import { bashTool, commandNeedsApproval } from "../../file-system/bash";
+import { createLocalSandbox } from "../../../sandbox";
 
 const EXPLORER_SYSTEM_PROMPT = `You are an explorer agent - a fast, read-only subagent specialized for exploring codebases.
 
@@ -92,5 +93,9 @@ ${options.instructions}
 - You CANNOT ask questions - no one will respond
 - This is READ-ONLY - do NOT create, modify, or delete any files
 - Your final message MUST include both a **Summary** of what you searched AND the **Answer** to the task`,
+    experimental_context: {
+      workingDirectory: options.cwd,
+      sandbox: createLocalSandbox(),
+    },
   }),
 });

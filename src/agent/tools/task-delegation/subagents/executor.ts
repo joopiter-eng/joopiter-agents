@@ -5,6 +5,7 @@ import { writeFileTool, editFileTool } from "../../file-system/write";
 import { grepTool } from "../../file-system/grep";
 import { globTool } from "../../file-system/glob";
 import { bashTool, commandNeedsApproval } from "../../file-system/bash";
+import { createLocalSandbox } from "../../../sandbox";
 
 const EXECUTOR_SYSTEM_PROMPT = `You are an executor agent - a fire-and-forget subagent that completes specific, well-defined implementation tasks autonomously.
 
@@ -83,5 +84,9 @@ ${options.instructions}
 - You CANNOT ask questions - no one will respond
 - Complete the task fully before returning
 - Your final message MUST include both a **Summary** of what you did AND the **Answer** to the task`,
+    experimental_context: {
+      workingDirectory: options.cwd,
+      sandbox: createLocalSandbox(),
+    },
   }),
 });

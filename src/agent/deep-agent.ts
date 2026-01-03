@@ -26,6 +26,7 @@ import { todoItemSchema } from "./types";
 import { devToolsMiddleware } from "@ai-sdk/devtools";
 import { addCacheControl, compactContext } from "./utils";
 import { anthropic } from "@ai-sdk/anthropic";
+import { createLocalSandbox, type Sandbox } from "./sandbox";
 
 const callOptionsSchema = z.object({
   workingDirectory: z.string(),
@@ -43,6 +44,7 @@ const callOptionsSchema = z.object({
       }),
     )
     .optional(),
+  sandbox: z.custom<Sandbox>().optional(),
 });
 
 export type DeepAgentCallOptions = z.infer<typeof callOptionsSchema>;
@@ -88,6 +90,7 @@ export const deepAgent = new ToolLoopAgent({
     const todos = options?.todos ?? [];
     const scratchpad =
       options?.scratchpad ?? new Map<string, ScratchpadEntry>();
+    const sandbox = options?.sandbox ?? createLocalSandbox();
 
     const todosContext = formatTodosForContext(todos);
     const scratchpadContext = formatScratchpadForContext(scratchpad);
@@ -101,7 +104,7 @@ export const deepAgent = new ToolLoopAgent({
         todosContext,
         scratchpadContext,
       }),
-      experimental_context: { workingDirectory },
+      experimental_context: { workingDirectory, sandbox },
     };
   },
 });

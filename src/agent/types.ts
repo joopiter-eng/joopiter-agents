@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { Sandbox } from "./sandbox";
 
 export const todoStatusSchema = z.enum(["pending", "in_progress", "completed"]);
 export type TodoStatus = z.infer<typeof todoStatusSchema>;
@@ -42,6 +43,7 @@ export interface MemoryStore {
 
 export interface AgentContext {
   workingDirectory: string;
+  sandbox: Sandbox;
 }
 
 export const EVICTION_THRESHOLD_BYTES = 80 * 1024;

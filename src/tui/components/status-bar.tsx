@@ -26,7 +26,7 @@ const PULSE_SPEED = 100;
 function useSillyWord() {
   const [index, setIndex] = useState(() => Math.floor(Math.random() * SILLY_WORDS.length));
   const [pulsePosition, setPulsePosition] = useState(0);
-  const currentWord = SILLY_WORDS[index];
+  const currentWord = SILLY_WORDS[index] ?? "Thinking";
 
   // Pulse animation - moves highlight from left to right
   useEffect(() => {

@@ -1,4 +1,5 @@
 import type { AgentMode } from "../types";
+import type { SessionRule, ApprovalRule } from "./session-rules";
 
 /**
  * Mutable global state shared between prepareCall and tool approval functions.
@@ -15,7 +16,29 @@ import type { AgentMode } from "../types";
 export const sharedContext: {
   workingDirectory: string;
   mode: AgentMode;
+  sessionRules: SessionRule[];
 } = {
   workingDirectory: process.cwd(),
   mode: "interactive",
+  sessionRules: [],
 };
+
+/**
+ * Add a session rule for auto-approving matching tool requests.
+ * Rules are scoped to the current working directory.
+ */
+export function addSessionRule(rule: ApprovalRule): void {
+  sharedContext.sessionRules.push({
+    id: crypto.randomUUID(),
+    rule,
+    scope: { cwd: sharedContext.workingDirectory },
+    createdAt: Date.now(),
+  });
+}
+
+/**
+ * Clear all session rules.
+ */
+export function clearSessionRules(): void {
+  sharedContext.sessionRules = [];
+}

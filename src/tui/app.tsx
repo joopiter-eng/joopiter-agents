@@ -11,7 +11,8 @@ import { useChatContext } from "./chat-context.js";
 import { useReasoningContext } from "./reasoning-context.js";
 import { useExpandedView } from "./expanded-view-context.js";
 import { useTodoView } from "./todo-view-context.js";
-import { ToolCall } from "./components/tool-call.js";
+import { ToolCall, getToolApprovalInfo } from "./components/tool-call.js";
+import { ApprovalPanel } from "./components/approval-panel.js";
 import { TaskGroupView } from "./components/task-group-view.js";
 import { StatusBar } from "./components/status-bar.js";
 import { InputBox } from "./components/input-box.js";
@@ -499,7 +500,7 @@ function AppContent({ options }: AppProps) {
     }
   }, [isStreaming]);
 
-  const { hasPendingApproval, activeApprovalId } = useMemo(() => {
+  const { hasPendingApproval, activeApprovalId, pendingToolPart } = useMemo(() => {
     const lastMessage = messages[messages.length - 1];
     if (lastMessage?.role === "assistant") {
       for (const p of lastMessage.parts) {
@@ -508,12 +509,19 @@ function AppContent({ options }: AppProps) {
           return {
             hasPendingApproval: true,
             activeApprovalId: approval?.id ?? null,
+            pendingToolPart: p,
           };
         }
       }
     }
-    return { hasPendingApproval: false, activeApprovalId: null };
+    return { hasPendingApproval: false, activeApprovalId: null, pendingToolPart: null };
   }, [messages]);
+
+  // Get approval info for the pending tool
+  const approvalInfo = useMemo(() => {
+    if (!pendingToolPart) return null;
+    return getToolApprovalInfo(pendingToolPart, state.workingDirectory);
+  }, [pendingToolPart, state.workingDirectory]);
 
   useInput((input, key) => {
     if (key.escape && isStreaming) {
@@ -547,6 +555,7 @@ function AppContent({ options }: AppProps) {
     [isStreaming, sendMessage],
   );
 
+  // Show message list with either approval panel or input box at bottom
   return (
     <Box flexDirection="column" paddingLeft={1} paddingRight={1}>
       <Header
@@ -567,20 +576,35 @@ function AppContent({ options }: AppProps) {
 
       <ErrorDisplay error={error} />
 
-      {isStreaming && (
-        <StreamingStatusBar messages={messages} />
-      )}
-
-      {!hasPendingApproval && !isExpanded && (
-        <InputBox
-          onSubmit={handleSubmit}
-          autoAcceptMode={state.autoAcceptMode}
-          onToggleAutoAccept={cycleAutoAcceptMode}
-          disabled={isStreaming}
-          inputTokens={state.usage.inputTokens ?? 0}
-          contextLimit={state.contextLimit}
-          pasteCollapseLineThreshold={pasteCollapseLineThreshold}
+      {/* Show approval panel when there's a pending approval (replaces status bar and input) */}
+      {hasPendingApproval && activeApprovalId && approvalInfo ? (
+        <ApprovalPanel
+          approvalId={activeApprovalId}
+          toolType={approvalInfo.toolType}
+          toolCommand={approvalInfo.toolCommand}
+          toolDescription={approvalInfo.toolDescription}
+          dontAskAgainPattern={approvalInfo.dontAskAgainPattern}
         />
+      ) : (
+        <>
+          {/* Show streaming status bar when streaming */}
+          {isStreaming && (
+            <StreamingStatusBar messages={messages} />
+          )}
+
+          {/* Show input box (disabled when streaming) */}
+          {!isExpanded && (
+            <InputBox
+              onSubmit={handleSubmit}
+              autoAcceptMode={state.autoAcceptMode}
+              onToggleAutoAccept={cycleAutoAcceptMode}
+              disabled={isStreaming}
+              inputTokens={state.usage.inputTokens ?? 0}
+              contextLimit={state.contextLimit}
+              pasteCollapseLineThreshold={pasteCollapseLineThreshold}
+            />
+          )}
+        </>
       )}
 
       {isExpanded && <ExpandedViewIndicator />}

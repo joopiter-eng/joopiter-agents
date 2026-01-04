@@ -5,6 +5,86 @@ import { getToolName, isTextUIPart, isToolUIPart } from "ai";
 import { useChatContext } from "../chat-context.js";
 import type { TUIAgentUIToolPart } from "../types.js";
 
+export type ToolApprovalInfo = {
+  toolType: string;
+  toolCommand: string;
+  toolDescription?: string;
+  dontAskAgainPattern?: string;
+};
+
+export function getToolApprovalInfo(
+  part: TUIAgentUIToolPart,
+  workingDirectory?: string,
+): ToolApprovalInfo {
+  const cwd = workingDirectory ?? process.cwd();
+
+  switch (part.type) {
+    case "tool-bash": {
+      const command = String(part.input?.command ?? "");
+      // Description may be provided by Claude as additional context
+      const description = (part.input as { description?: string } | undefined)
+        ?.description;
+      // Extract first word of command for the pattern
+      const firstWord = command.split(" ")[0] ?? "this command";
+      return {
+        toolType: "Bash command",
+        toolCommand: command,
+        toolDescription: description,
+        dontAskAgainPattern: `${firstWord} commands in ${cwd}`,
+      };
+    }
+
+    case "tool-write": {
+      const filePath = String(part.input?.filePath ?? "");
+      return {
+        toolType: "Write file",
+        toolCommand: filePath,
+        toolDescription: "Create new file",
+        dontAskAgainPattern: `writes in ${cwd}`,
+      };
+    }
+
+    case "tool-edit": {
+      const filePath = String(part.input?.filePath ?? "");
+      return {
+        toolType: "Edit file",
+        toolCommand: filePath,
+        toolDescription: "Modify existing file",
+        dontAskAgainPattern: `edits in ${cwd}`,
+      };
+    }
+
+    case "tool-task": {
+      const desc = String(part.input?.task ?? "Spawning subagent");
+      const subagentType = (part.input as { subagentType?: string })
+        ?.subagentType;
+      return {
+        toolType:
+          subagentType === "executor"
+            ? "Executor task"
+            : subagentType === "explorer"
+              ? "Explorer task"
+              : "Task",
+        toolCommand: desc,
+        toolDescription:
+          subagentType === "executor"
+            ? "This executor has full write access and can create, modify, and delete files."
+            : undefined,
+        dontAskAgainPattern: `${subagentType ?? "task"} operations`,
+      };
+    }
+
+    default: {
+      const toolName = getToolName(part);
+      return {
+        toolType: toolName.charAt(0).toUpperCase() + toolName.slice(1),
+        toolCommand: JSON.stringify(part.input).slice(0, 60),
+        dontAskAgainPattern: `${toolName} operations`,
+      };
+    }
+  }
+}
+
 type DiffLine = {
   type: "context" | "addition" | "removal" | "separator";
   lineNumber?: number;
@@ -159,11 +239,15 @@ function ToolLayout({
         <Text color="gray">)</Text>
       </Box>
 
-      {isActiveApproval && approvalId && (
-        <ApprovalButtons approvalId={approvalId} />
+      {/* Show Running/Waiting status for approval-requested tools */}
+      {approvalRequested && (
+        <Box paddingLeft={2}>
+          <Text color="gray">└ </Text>
+          <Text color="gray">{isActiveApproval ? "Running…" : "Waiting…"}</Text>
+        </Box>
       )}
 
-      {output && (
+      {output && !approvalRequested && (
         <Box paddingLeft={2}>
           <Text color="gray">└ </Text>
           {output}
@@ -246,8 +330,16 @@ function FileChangeLayout({
         <Text color="gray">)</Text>
       </Box>
 
+      {/* Show Running/Waiting status for approval-requested tools */}
+      {approvalRequested && (
+        <Box paddingLeft={2}>
+          <Text color="gray">└ </Text>
+          <Text color="gray">{isActiveApproval ? "Running…" : "Waiting…"}</Text>
+        </Box>
+      )}
+
       {/* Subheader: └ Updated src/file.ts with X additions and Y removals */}
-      {showDiff && (
+      {showDiff && !approvalRequested && !denied && (
         <Box paddingLeft={2}>
           <Text color="gray">└ </Text>
           <Text>{action === "Create" ? "Created" : "Updated"} </Text>
@@ -264,7 +356,7 @@ function FileChangeLayout({
       )}
 
       {/* Diff lines */}
-      {showDiff && lines.length > 0 && (
+      {showDiff && !approvalRequested && !denied && lines.length > 0 && (
         <Box flexDirection="column" paddingLeft={4}>
           {lines.map((line, i) => (
             <Box key={i}>
@@ -305,11 +397,6 @@ function FileChangeLayout({
             </Box>
           ))}
         </Box>
-      )}
-
-      {/* Approval buttons */}
-      {isActiveApproval && approvalId && (
-        <ApprovalButtons approvalId={approvalId} />
       )}
 
       {denied && (
@@ -475,15 +562,13 @@ export function ToolCall({
 }) {
   const running =
     part.state === "input-streaming" || part.state === "input-available";
-  const approvalRequested = part.state === "approval-requested";
-  const denied = part.state === "output-denied";
-  const denialReason = denied
-    ? (part as { approval?: { reason?: string } }).approval?.reason
-    : undefined;
+  const approval = (part as { approval?: { id?: string; approved?: boolean; reason?: string } }).approval;
+  // Check for denial both via state and via approval object (for intermediate states)
+  const denied = part.state === "output-denied" || approval?.approved === false;
+  const denialReason = denied ? approval?.reason : undefined;
+  const approvalRequested = part.state === "approval-requested" && !denied;
   const error = part.state === "output-error" ? part.errorText : undefined;
-  const approvalId = approvalRequested
-    ? (part as { approval?: { id: string } }).approval?.id
-    : undefined;
+  const approvalId = approvalRequested ? approval?.id : undefined;
   // Only show interactive approval buttons for the first pending approval
   const isActiveApproval = approvalId != null && approvalId === activeApprovalId;
 
@@ -752,11 +837,6 @@ export function ToolCall({
                 This executor has full write access and can create, modify, and delete files.
               </Text>
             </Box>
-          )}
-
-          {/* Approval buttons */}
-          {isTaskActiveApproval && taskApprovalId && (
-            <ApprovalButtons approvalId={taskApprovalId} />
           )}
 
           {/* Denied message */}

@@ -1,7 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import * as path from "path";
-import { isPathWithinDirectory, getSandbox } from "../../utils";
+import { isPathWithinDirectory, getSandbox, sharedContext } from "../../utils";
 
 const writeInputSchema = z.object({
   filePath: z.string().describe("Absolute path to the file to write"),
@@ -34,8 +34,54 @@ interface EditToolOptions {
   needsApproval?: boolean | EditApprovalFn;
 }
 
+/**
+ * Check if a path is outside the working directory.
+ */
+function isOutsideWorkingDirectory(filePath: string): boolean {
+  const absolutePath = path.isAbsolute(filePath)
+    ? filePath
+    : path.resolve(sharedContext.workingDirectory, filePath);
+  return !isPathWithinDirectory(absolutePath, sharedContext.workingDirectory);
+}
+
+/**
+ * Create a combined approval function for write operations.
+ * Always requires approval if path is outside CWD, otherwise uses the provided option.
+ */
+function createWriteApprovalFn(options?: WriteToolOptions): WriteApprovalFn {
+  return async (args) => {
+    // Always need approval if outside working directory
+    if (isOutsideWorkingDirectory(args.filePath)) {
+      return true;
+    }
+    // Otherwise use the configured approval setting
+    if (typeof options?.needsApproval === "function") {
+      return options.needsApproval(args);
+    }
+    return options?.needsApproval ?? true;
+  };
+}
+
+/**
+ * Create a combined approval function for edit operations.
+ * Always requires approval if path is outside CWD, otherwise uses the provided option.
+ */
+function createEditApprovalFn(options?: EditToolOptions): EditApprovalFn {
+  return async (args) => {
+    // Always need approval if outside working directory
+    if (isOutsideWorkingDirectory(args.filePath)) {
+      return true;
+    }
+    // Otherwise use the configured approval setting
+    if (typeof options?.needsApproval === "function") {
+      return options.needsApproval(args);
+    }
+    return options?.needsApproval ?? true;
+  };
+}
+
 export const writeFileTool = (options?: WriteToolOptions) => tool({
-  needsApproval: options?.needsApproval ?? true,
+  needsApproval: createWriteApprovalFn(options),
   description: `Write content to a file on the filesystem.
 
 WHEN TO USE:
@@ -58,7 +104,7 @@ IMPORTANT:
 - Prefer editing existing files over creating new ones unless a new file is explicitly needed
 - NEVER proactively create documentation files (e.g., *.md) unless the user explicitly requests them
 - Do not write files that contain secrets or credentials (API keys, passwords, .env, etc.)
-- Access is restricted to paths inside the working directory; paths outside will be rejected
+- Paths outside the working directory require approval
 
 EXAMPLES:
 - Create a new test file: filePath: "/Users/username/project/src/user.test.ts", content: "<full file contents>"
@@ -72,14 +118,6 @@ EXAMPLES:
       const absolutePath = path.isAbsolute(filePath)
         ? filePath
         : path.resolve(workingDirectory, filePath);
-
-      // Security check: ensure path is within working directory
-      if (!isPathWithinDirectory(absolutePath, workingDirectory)) {
-        return {
-          success: false,
-          error: `Access denied: path "${absolutePath}" is outside the working directory "${workingDirectory}"`,
-        };
-      }
 
       const dir = path.dirname(absolutePath);
       await sandbox.mkdir(dir, { recursive: true });
@@ -103,7 +141,7 @@ EXAMPLES:
 });
 
 export const editFileTool = (options?: EditToolOptions) => tool({
-  needsApproval: options?.needsApproval ?? true,
+  needsApproval: createEditApprovalFn(options),
   description: `Perform exact string replacement in a file.
 
 WHEN TO USE:
@@ -126,7 +164,7 @@ IMPORTANT:
 - Preserve exact indentation and spacing from the file's content as returned by readFileTool
 - Never include line numbers or the "N: " line prefixes from the read output in oldString or newString
 - If oldString appears multiple times and replaceAll is false, the tool will FAIL with an error and occurrence count
-- Access is restricted to paths inside the working directory; paths outside will be rejected
+- Paths outside the working directory require approval
 
 EXAMPLES:
 - Replace a single function call: filePath: "/Users/username/project/src/auth.ts", oldString: "login(user, password)", newString: "loginWithAudit(user, password)"
@@ -147,14 +185,6 @@ EXAMPLES:
       const absolutePath = path.isAbsolute(filePath)
         ? filePath
         : path.resolve(workingDirectory, filePath);
-
-      // Security check: ensure path is within working directory
-      if (!isPathWithinDirectory(absolutePath, workingDirectory)) {
-        return {
-          success: false,
-          error: `Access denied: path "${absolutePath}" is outside the working directory "${workingDirectory}"`,
-        };
-      }
 
       const content = await sandbox.readFile(absolutePath, "utf-8");
 

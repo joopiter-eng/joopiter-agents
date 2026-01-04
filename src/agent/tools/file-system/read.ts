@@ -1,9 +1,39 @@
 import { tool } from "ai";
 import { z } from "zod";
 import * as path from "path";
-import { isPathWithinDirectory, getSandbox } from "../../utils";
+import { isPathWithinDirectory, getSandbox, sharedContext } from "../../utils";
 
-export const readFileTool = tool({
+const readInputSchema = z.object({
+  filePath: z
+    .string()
+    .describe(
+      "Full absolute path to the file (e.g., /Users/username/project/file.ts)",
+    ),
+  offset: z
+    .number()
+    .optional()
+    .describe("Line number to start reading from (1-indexed)"),
+  limit: z
+    .number()
+    .optional()
+    .describe("Maximum number of lines to read. Default: 2000"),
+});
+
+type ReadInput = z.infer<typeof readInputSchema>;
+
+/**
+ * Check if a read operation needs approval based on the file path.
+ * Returns true if the path is outside the working directory.
+ */
+function pathNeedsApproval(args: ReadInput): boolean {
+  const absolutePath = path.isAbsolute(args.filePath)
+    ? args.filePath
+    : path.resolve(sharedContext.workingDirectory, args.filePath);
+  return !isPathWithinDirectory(absolutePath, sharedContext.workingDirectory);
+}
+
+export const readFileTool = () => tool({
+  needsApproval: pathNeedsApproval,
   description: `Read a file from the filesystem.
 
 USAGE:
@@ -17,27 +47,13 @@ USAGE:
 IMPORTANT:
 - Always read a file at least once before editing it with the edit/write tools
 - This tool can only read files, not directories - attempting to read a directory returns an error
-- Access is restricted to files inside the current working directory; paths outside will be rejected
+- Paths outside the working directory require approval
 - You can call multiple reads in parallel to speculatively load several files
 
 EXAMPLES:
 - Read an entire file: filePath: "/Users/username/project/src/index.ts"
 - Read a slice of a long file: filePath: "/Users/username/project/logs/app.log", offset: 500, limit: 200`,
-  inputSchema: z.object({
-    filePath: z
-      .string()
-      .describe(
-        "Full absolute path to the file (e.g., /Users/username/project/file.ts)",
-      ),
-    offset: z
-      .number()
-      .optional()
-      .describe("Line number to start reading from (1-indexed)"),
-    limit: z
-      .number()
-      .optional()
-      .describe("Maximum number of lines to read. Default: 2000"),
-  }),
+  inputSchema: readInputSchema,
   execute: async ({ filePath, offset = 1, limit = 2000 }, { experimental_context }) => {
     const sandbox = getSandbox(experimental_context);
     const workingDirectory = sandbox.workingDirectory;
@@ -78,14 +94,6 @@ EXAMPLES:
             // Neither path exists - let it fall through to the original error handling
           }
         }
-      }
-
-      // Security check: ensure path is within working directory
-      if (!isPathWithinDirectory(absolutePath, workingDirectory)) {
-        return {
-          success: false,
-          error: `Access denied: path "${absolutePath}" is outside the working directory "${workingDirectory}"`,
-        };
       }
 
       const stats = await sandbox.stat(absolutePath);

@@ -2,7 +2,7 @@ import { tool } from "ai";
 import { z } from "zod";
 import * as path from "path";
 import type { Sandbox } from "../../sandbox";
-import { isPathWithinDirectory, getSandbox } from "../../utils";
+import { isPathWithinDirectory, getSandbox, sharedContext } from "../../utils";
 
 interface FileInfo {
   path: string;
@@ -90,7 +90,37 @@ async function findFiles(
   return results;
 }
 
-export const globTool = tool({
+const globInputSchema = z.object({
+  pattern: z.string().describe("Glob pattern to match (e.g., '**/*.ts')"),
+  path: z
+    .string()
+    .optional()
+    .describe("Base directory to search from (absolute path)"),
+  limit: z
+    .number()
+    .optional()
+    .describe("Maximum number of results. Default: 100"),
+});
+
+type GlobInput = z.infer<typeof globInputSchema>;
+
+/**
+ * Check if a glob operation needs approval based on the search path.
+ * Returns true if the path is outside the working directory.
+ */
+function pathNeedsApproval(args: GlobInput): boolean {
+  // If no path is provided, it defaults to working directory (no approval needed)
+  if (!args.path) {
+    return false;
+  }
+  const absolutePath = path.isAbsolute(args.path)
+    ? args.path
+    : path.resolve(sharedContext.workingDirectory, args.path);
+  return !isPathWithinDirectory(absolutePath, sharedContext.workingDirectory);
+}
+
+export const globTool = () => tool({
+  needsApproval: pathNeedsApproval,
   description: `Find files matching a glob pattern.
 
 WHEN TO USE:
@@ -111,7 +141,7 @@ USAGE:
 - Results are limited by the limit parameter (default: 100)
 
 IMPORTANT:
-- Access is restricted to paths under the working directory; base paths outside will be rejected
+- Paths outside the working directory require approval
 - Patterns are matched primarily on the final path segment (file name), with basic "*" and "**" support
 - Use this to narrow down candidate files before calling readFileTool or grepTool
 
@@ -119,17 +149,7 @@ EXAMPLES:
 - All TypeScript files in the project: pattern: "**/*.ts"
 - All Jest tests under src: pattern: "src/**/*.test.ts"
 - Recent JSON config files: pattern: "*.json", path: "/Users/username/project/config", limit: 20`,
-  inputSchema: z.object({
-    pattern: z.string().describe("Glob pattern to match (e.g., '**/*.ts')"),
-    path: z
-      .string()
-      .optional()
-      .describe("Base directory to search from (absolute path)"),
-    limit: z
-      .number()
-      .optional()
-      .describe("Maximum number of results. Default: 100"),
-  }),
+  inputSchema: globInputSchema,
   execute: async ({ pattern, path: basePath, limit = 100 }, { experimental_context }) => {
     const sandbox = getSandbox(experimental_context);
     const workingDirectory = sandbox.workingDirectory;
@@ -143,14 +163,6 @@ EXAMPLES:
           : path.resolve(workingDirectory, basePath);
       } else {
         searchDir = workingDirectory;
-      }
-
-      // Security check: ensure search directory is within working directory
-      if (!isPathWithinDirectory(searchDir, workingDirectory)) {
-        return {
-          success: false,
-          error: `Access denied: path "${searchDir}" is outside the working directory "${workingDirectory}"`,
-        };
       }
 
       const files = await findFiles(searchDir, pattern, limit, sandbox);

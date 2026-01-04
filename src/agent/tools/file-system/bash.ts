@@ -1,7 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import * as path from "path";
-import { isPathWithinDirectory, getSandbox } from "../../utils";
+import { isPathWithinDirectory, getSandbox, sharedContext } from "../../utils";
 
 const TIMEOUT_MS = 120_000;
 
@@ -18,6 +18,46 @@ type ApprovalFn = (args: BashInput) => boolean | Promise<boolean>;
 
 interface ToolOptions {
   needsApproval?: boolean | ApprovalFn;
+}
+
+/**
+ * Check if the cwd parameter is outside the working directory.
+ * If cwd is not provided, it defaults to working directory (no approval needed for path).
+ */
+function cwdIsOutsideWorkingDirectory(cwd: string | undefined): boolean {
+  if (!cwd) {
+    return false;
+  }
+  const absoluteCwd = path.isAbsolute(cwd)
+    ? cwd
+    : path.resolve(sharedContext.workingDirectory, cwd);
+  return !isPathWithinDirectory(absoluteCwd, sharedContext.workingDirectory);
+}
+
+/**
+ * Create a combined approval function for bash operations.
+ * Always requires approval if cwd is outside working directory,
+ * then checks command safety and user-provided option.
+ */
+function createBashApprovalFn(options?: ToolOptions): ApprovalFn {
+  return async (args) => {
+    // Always need approval if cwd is outside working directory
+    if (cwdIsOutsideWorkingDirectory(args.cwd)) {
+      return true;
+    }
+
+    // Check command safety
+    if (commandNeedsApproval(args.command)) {
+      // If command is dangerous, check user's approval setting
+      if (typeof options?.needsApproval === "function") {
+        return options.needsApproval(args);
+      }
+      return options?.needsApproval ?? true;
+    }
+
+    // Command is safe - no approval needed
+    return false;
+  };
 }
 
 // Read-only commands that are safe to run without approval
@@ -92,7 +132,7 @@ export function commandNeedsApproval(command: string): boolean {
 }
 
 export const bashTool = (options?: ToolOptions) => tool({
-  needsApproval: options?.needsApproval ?? true,
+  needsApproval: createBashApprovalFn(options),
   description: `Execute a bash command in the user's shell (non-interactive).
 
 WHEN TO USE:
@@ -123,7 +163,7 @@ IMPORTANT:
 - Never use interactive commands (vim, nano, top, bash, ssh, etc.)
 - Never start background processes with '&'
 - Always quote file paths that may contain spaces
-- The working directory (cwd) must be within the main working directory; paths outside are rejected
+- Setting cwd to a path outside the working directory requires approval
 
 EXAMPLES:
 - Run the test suite: command: "npm test", cwd: "/Users/username/project"
@@ -138,16 +178,6 @@ EXAMPLES:
     const workingDir = cwd
       ? (path.isAbsolute(cwd) ? cwd : path.resolve(workingDirectory, cwd))
       : workingDirectory;
-
-    // Security check: ensure cwd is within working directory
-    if (!isPathWithinDirectory(workingDir, workingDirectory)) {
-      return {
-        success: false,
-        exitCode: null,
-        stdout: "",
-        stderr: `Access denied: cwd "${workingDir}" is outside the working directory "${workingDirectory}"`,
-      };
-    }
 
     const result = await sandbox.exec(command, workingDir, TIMEOUT_MS);
 

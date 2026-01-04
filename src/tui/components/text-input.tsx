@@ -241,10 +241,7 @@ export function TextInput({
       const currentValue = valueRef.current;
       const currentCursor = cursorRef.current;
 
-      if (pasteBufferRef.current && input.length <= 1) {
-        flushPasteBuffer();
-      }
-
+      // Handle paste buffering
       if (onPaste && input.length > 1) {
         pasteBufferRef.current += input;
         if (pasteTimerRef.current) {
@@ -254,6 +251,20 @@ export function TextInput({
           flushPasteBuffer();
         }, 50);
         return;
+      }
+
+      // If we have a paste buffer and receive a single printable character,
+      // it's likely the tail end of a paste that got split. Add it to the buffer
+      // and flush immediately.
+      if (pasteBufferRef.current && input.length === 1 && !key.backspace && !key.delete && !key.return && !key.escape && !key.tab) {
+        pasteBufferRef.current += input;
+        flushPasteBuffer();
+        return;
+      }
+
+      // Flush any pending paste buffer for non-character keys
+      if (pasteBufferRef.current) {
+        flushPasteBuffer();
       }
 
       // Handle up arrow - let parent intercept if needed

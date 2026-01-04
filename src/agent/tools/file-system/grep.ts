@@ -2,7 +2,7 @@ import { tool } from "ai";
 import { z } from "zod";
 import * as path from "path";
 import type { Sandbox } from "../../sandbox";
-import { isPathWithinDirectory, getSandbox } from "../../utils";
+import { isPathWithinDirectory, getSandbox, sharedContext } from "../../utils";
 
 interface GrepMatch {
   file: string;
@@ -79,7 +79,36 @@ async function walkDirectory(
   return files;
 }
 
-export const grepTool = tool({
+const grepInputSchema = z.object({
+  pattern: z.string().describe("Regex pattern to search for"),
+  path: z
+    .string()
+    .describe("File or directory to search in (absolute path)"),
+  glob: z
+    .string()
+    .optional()
+    .describe("Glob pattern to filter files (e.g., '*.ts')"),
+  caseSensitive: z
+    .boolean()
+    .optional()
+    .describe("Case-sensitive search. Default: true"),
+});
+
+type GrepInput = z.infer<typeof grepInputSchema>;
+
+/**
+ * Check if a grep operation needs approval based on the search path.
+ * Returns true if the path is outside the working directory.
+ */
+function pathNeedsApproval(args: GrepInput): boolean {
+  const absolutePath = path.isAbsolute(args.path)
+    ? args.path
+    : path.resolve(sharedContext.workingDirectory, args.path);
+  return !isPathWithinDirectory(absolutePath, sharedContext.workingDirectory);
+}
+
+export const grepTool = () => tool({
+  needsApproval: pathNeedsApproval,
   description: `Search for patterns in files using JavaScript regular expressions.
 
 WHEN TO USE:
@@ -103,25 +132,12 @@ IMPORTANT:
 - ALWAYS use this tool for code/content searches instead of running grep/rg via bashTool
 - Use caseSensitive: false for case-insensitive searches
 - Hidden files and node_modules are skipped when searching directories
-- Access is restricted to files under the current working directory; paths outside will be rejected
+- Paths outside the working directory require approval
 
 EXAMPLES:
 - Find all TODO comments in TypeScript files: pattern: "TODO", path: "/Users/username/project", glob: "*.ts"
 - Find all references to a function (case-insensitive): pattern: "handleRequest", path: "/Users/username/project/src", caseSensitive: false`,
-  inputSchema: z.object({
-    pattern: z.string().describe("Regex pattern to search for"),
-    path: z
-      .string()
-      .describe("File or directory to search in (absolute path)"),
-    glob: z
-      .string()
-      .optional()
-      .describe("Glob pattern to filter files (e.g., '*.ts')"),
-    caseSensitive: z
-      .boolean()
-      .optional()
-      .describe("Case-sensitive search. Default: true"),
-  }),
+  inputSchema: grepInputSchema,
   execute: async ({
     pattern,
     path: searchPath,
@@ -138,14 +154,6 @@ EXAMPLES:
       const absolutePath = path.isAbsolute(searchPath)
         ? searchPath
         : path.resolve(workingDirectory, searchPath);
-
-      // Security check: ensure path is within working directory
-      if (!isPathWithinDirectory(absolutePath, workingDirectory)) {
-        return {
-          success: false,
-          error: `Access denied: path "${absolutePath}" is outside the working directory "${workingDirectory}"`,
-        };
-      }
 
       const stats = await sandbox.stat(absolutePath);
       let files: string[];

@@ -1,7 +1,12 @@
 import { connectVercelSandbox } from "@open-harness/sandbox";
+import type { Sandbox } from "@open-harness/sandbox";
+import { nanoid } from "nanoid";
 import { getUserGitHubToken } from "@/lib/github/user-token";
 import { getServerSession } from "@/lib/session/get-server-session";
 import { getTaskById, updateTask } from "@/lib/db/tasks";
+import { createTaskDiff, getLatestTaskDiff } from "@/lib/db/task-diffs";
+import { captureSandboxState } from "@/lib/sandbox/capture-state";
+import { restoreSandboxState } from "@/lib/sandbox/restore-state";
 
 const DEFAULT_TIMEOUT = 300_000; // 5 minutes
 
@@ -11,6 +16,30 @@ interface CreateSandboxRequest {
   isNewBranch?: boolean;
   taskId?: string;
   sandboxId?: string; // Existing sandbox ID if any
+}
+
+async function captureAndStoreTaskDiff(sandbox: Sandbox, taskId: string) {
+  try {
+    const state = await captureSandboxState(sandbox);
+    const hasChanges =
+      state.diffContent.trim().length > 0 || state.untrackedFiles.length > 0;
+
+    if (!hasChanges) {
+      return;
+    }
+
+    const baseCommit = state.baseCommit.trim();
+    await createTaskDiff({
+      id: nanoid(),
+      taskId,
+      diffContent: state.diffContent,
+      untrackedFiles: state.untrackedFiles,
+      baseCommit: baseCommit.length > 0 ? baseCommit : null,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("Failed to capture sandbox state in beforeStop:", message);
+  }
 }
 
 export async function POST(req: Request) {
@@ -85,6 +114,14 @@ export async function POST(req: Request) {
     },
   };
 
+  if (taskId) {
+    sandboxOptions.hooks = {
+      beforeStop: async (sandboxInstance) => {
+        await captureAndStoreTaskDiff(sandboxInstance, taskId);
+      },
+    };
+  }
+
   // Only add source when we have a repo to clone
   if (repoUrl) {
     sandboxOptions.source = {
@@ -98,9 +135,31 @@ export async function POST(req: Request) {
 
   const sandbox = await connectVercelSandbox(sandboxOptions);
 
-  // Update task with sandboxId if this is a new sandbox
-  // Verify task ownership before updating
-  if (taskId && !taskSandboxId) {
+  // Restore workspace state if available
+  let stateRestored: boolean | undefined;
+  let stateRestoreError: string | undefined;
+  if (taskId) {
+    try {
+      const latestDiff = await getLatestTaskDiff(taskId);
+      if (latestDiff) {
+        const restoreResult = await restoreSandboxState(sandbox, latestDiff);
+        if (restoreResult.success) {
+          stateRestored = true;
+        } else {
+          stateRestored = false;
+          stateRestoreError = restoreResult.error;
+        }
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      stateRestored = false;
+      stateRestoreError = message;
+      console.warn("Failed to restore sandbox state:", message);
+    }
+  }
+
+  // Update task with latest sandboxId
+  if (taskId && sandbox.id !== taskSandboxId) {
     await updateTask(taskId, { sandboxId: sandbox.id });
   }
 
@@ -109,6 +168,8 @@ export async function POST(req: Request) {
     createdAt: Date.now(),
     timeout: DEFAULT_TIMEOUT,
     currentBranch: sandbox.currentBranch,
+    ...(stateRestored !== undefined && { stateRestored }),
+    ...(stateRestoreError && { stateRestoreError }),
   });
 }
 
@@ -156,7 +217,14 @@ export async function DELETE(req: Request) {
     );
   }
 
-  const sandbox = await connectVercelSandbox({ sandboxId });
+  const sandbox = await connectVercelSandbox({
+    sandboxId,
+    hooks: {
+      beforeStop: async (sandboxInstance) => {
+        await captureAndStoreTaskDiff(sandboxInstance, taskId);
+      },
+    },
+  });
   await sandbox.stop();
 
   return Response.json({ success: true });

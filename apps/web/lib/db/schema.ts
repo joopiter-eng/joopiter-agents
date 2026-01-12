@@ -97,6 +97,24 @@ export const tasks = pgTable("tasks", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+export type TaskDiffUntrackedFile = {
+  path: string;
+  content: string;
+};
+
+export const taskDiffs = pgTable("task_diffs", {
+  id: text("id").primaryKey(),
+  taskId: text("task_id")
+    .notNull()
+    .references(() => tasks.id, { onDelete: "cascade" }),
+  diffContent: text("diff_content").notNull(),
+  untrackedFiles: jsonb("untracked_files")
+    .$type<TaskDiffUntrackedFile[]>()
+    .notNull(),
+  baseCommit: text("base_commit"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const taskMessages = pgTable("task_messages", {
   id: text("id").primaryKey(),
   taskId: text("task_id")
@@ -112,5 +130,7 @@ export const taskMessages = pgTable("task_messages", {
 
 export type Task = typeof tasks.$inferSelect;
 export type NewTask = typeof tasks.$inferInsert;
+export type TaskDiff = typeof taskDiffs.$inferSelect;
+export type NewTaskDiff = typeof taskDiffs.$inferInsert;
 export type TaskMessage = typeof taskMessages.$inferSelect;
 export type NewTaskMessage = typeof taskMessages.$inferInsert;

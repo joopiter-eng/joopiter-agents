@@ -26,11 +26,6 @@ interface SandboxOption {
 
 const SANDBOX_OPTIONS: SandboxOption[] = [
   {
-    id: "hybrid",
-    name: "Hybrid",
-    description: "Starts in-memory, hands off to cloud",
-  },
-  {
     id: "vercel",
     name: "Vercel",
     description: "Full cloud sandbox",
@@ -39,6 +34,11 @@ const SANDBOX_OPTIONS: SandboxOption[] = [
     id: "just-bash",
     name: "Just Bash",
     description: "In-memory bash-only sandbox",
+  },
+  {
+    id: "hybrid",
+    name: "Hybrid",
+    description: "Starts in-memory, hands off to cloud",
   },
 ];
 

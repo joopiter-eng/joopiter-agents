@@ -78,7 +78,6 @@ export interface HybridSandboxConfig {
  */
 export class HybridSandbox implements Sandbox {
   readonly type = "hybrid" as const;
-  readonly environmentDetails: string | undefined;
   readonly expiresAt: number | undefined;
   readonly timeout: number | undefined;
 
@@ -92,9 +91,22 @@ export class HybridSandbox implements Sandbox {
     this.justBash = config.justBash;
     this._pendingOperations = config.pendingOperations ?? [];
     this.onVercelRequired = config.onVercelRequired;
-    this.environmentDetails = this.justBash.environmentDetails;
     this.expiresAt = this.justBash.expiresAt;
     this.timeout = this.justBash.timeout;
+  }
+
+  /**
+   * Environment details - dynamically returns the correct details based on state.
+   * After handoff to Vercel, returns Vercel's environment details (with Git available).
+   * Before/during handoff, returns JustBash's environment details (no Git).
+   */
+  get environmentDetails(): string | undefined {
+    // After handoff complete, use Vercel's environment details
+    if (this.state === "vercel" && this.vercel) {
+      return this.vercel.environmentDetails;
+    }
+    // Before or during handoff, use JustBash's environment details
+    return this.justBash?.environmentDetails;
   }
 
   /**

@@ -111,6 +111,8 @@ function getTaskTokens(part: TaskToolUIPart): number | null {
 function getToolSummary(part: SubagentMessagePart): string {
   switch (part.type) {
     case "tool-read":
+    case "tool-write":
+    case "tool-edit":
       return part.input?.filePath ?? "";
     case "tool-grep":
     case "tool-glob":
@@ -135,7 +137,8 @@ function getLastToolInfo(
   if (toolParts.length === 0) return null;
 
   const lastTool = toolParts[toolParts.length - 1];
-  if (!lastTool) return null;
+  // Double-check needed for TypeScript narrowing with union types
+  if (!lastTool || !isToolUIPart(lastTool)) return null;
 
   const toolName = getToolName(lastTool);
   const summary = getToolSummary(lastTool);

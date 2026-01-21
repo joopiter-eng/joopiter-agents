@@ -57,7 +57,8 @@ function getLastToolInfo(
   if (toolParts.length === 0) return null;
 
   const lastTool = toolParts[toolParts.length - 1];
-  if (!lastTool) return null;
+  // Double-check needed for TypeScript narrowing with union types
+  if (!lastTool || !isToolUIPart(lastTool)) return null;
 
   const toolName = getToolName(lastTool);
   const input = lastTool.input as Record<string, unknown> | undefined;

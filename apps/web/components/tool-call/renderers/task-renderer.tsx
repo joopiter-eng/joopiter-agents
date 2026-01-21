@@ -15,6 +15,8 @@ type SubagentMessagePart = SubagentUIMessage["parts"][number];
 function getToolSummary(part: SubagentMessagePart): string {
   switch (part.type) {
     case "tool-read":
+    case "tool-write":
+    case "tool-edit":
       return part.input?.filePath ?? "";
     case "tool-grep":
     case "tool-glob":

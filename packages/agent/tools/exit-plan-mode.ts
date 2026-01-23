@@ -1,6 +1,6 @@
 import { tool } from "ai";
 import { z } from "zod";
-import { getAgentContext } from "./utils";
+import { getAgentContext, getApprovalContext } from "./utils";
 
 // Note: Need at least one property for Anthropic API compatibility
 const exitPlanModeInputSchema = z.object({
@@ -24,7 +24,28 @@ export type ExitPlanModeInput = z.infer<typeof exitPlanModeInputSchema>;
 
 export const exitPlanModeTool = () =>
   tool({
-    needsApproval: true,
+    needsApproval: async (_args, { experimental_context }) => {
+      const { sandbox, planFilePath } = getApprovalContext(
+        experimental_context,
+        "exit_plan_mode",
+      );
+
+      // No plan file path means we're not in plan mode - auto-approve
+      if (!planFilePath) {
+        return false;
+      }
+
+      // Try to read the plan file and check if it has content
+      try {
+        const content = await sandbox.readFile(planFilePath, "utf-8");
+        const hasContent = content.trim().length > 0;
+        // Only require approval if there's actual plan content
+        return hasContent;
+      } catch {
+        // Plan file doesn't exist or can't be read - auto-approve
+        return false;
+      }
+    },
     description: `Exit plan mode and request user approval to proceed with implementation.
 
 WHEN TO USE:
@@ -64,6 +85,20 @@ IMPORTANT:
       } catch {
         // Plan file may not exist yet
         plan = null;
+      }
+
+      // Check if there's actual plan content
+      const hasContent = plan !== null && plan.trim().length > 0;
+
+      if (!hasContent) {
+        return {
+          success: true,
+          message:
+            "No plan was written. Exiting plan mode. You now have full tool access.",
+          plan: null,
+          planFilePath,
+          allowedPrompts: allowedPrompts ?? [],
+        };
       }
 
       return {

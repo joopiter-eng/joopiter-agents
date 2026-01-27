@@ -1,5 +1,5 @@
 import React, { memo, useMemo } from "react";
-import { Box, Text } from "ink";
+import { Box, Text, useStdout } from "ink";
 
 export type Suggestion = {
   value: string;
@@ -39,12 +39,24 @@ function calculateWindow(
   };
 }
 
+function truncateDescription(description: string, maxWidth: number): string {
+  if (description.length <= maxWidth) {
+    return description;
+  }
+  if (maxWidth <= 3) {
+    return description.slice(0, maxWidth);
+  }
+  return description.slice(0, maxWidth - 3) + "...";
+}
+
 export const Suggestions = memo(function Suggestions({
   suggestions,
   selectedIndex,
   visible,
 }: SuggestionsProps) {
   const maxDisplay = 10;
+  const { stdout } = useStdout();
+  const terminalWidth = stdout?.columns ?? 80;
 
   // Calculate window based on selected index (must be called before early return)
   const { windowStart, windowEnd } = useMemo(
@@ -68,6 +80,10 @@ export const Suggestions = memo(function Suggestions({
   );
   const columnWidth = maxDisplayWidth + 4; // Add padding between columns
 
+  // Calculate available width for description
+  // Account for: paddingLeft (1) + columnWidth + some margin
+  const descriptionMaxWidth = terminalWidth - columnWidth - 4;
+
   return (
     <Box flexDirection="column" paddingLeft={1} marginTop={1} marginBottom={1}>
       {/* Scroll indicator: items above */}
@@ -81,6 +97,9 @@ export const Suggestions = memo(function Suggestions({
         // Map display index back to actual suggestion index
         const actualIndex = windowStart + displayIndex;
         const isSelected = actualIndex === selectedIndex;
+        const truncatedDescription = suggestion.description
+          ? truncateDescription(suggestion.description, descriptionMaxWidth)
+          : undefined;
 
         return (
           <Box key={suggestion.value}>
@@ -92,9 +111,9 @@ export const Suggestions = memo(function Suggestions({
             >
               {suggestion.display.padEnd(columnWidth)}
             </Text>
-            {suggestion.description && (
+            {truncatedDescription && (
               <Text color={isSelected ? "yellow" : "gray"}>
-                {suggestion.description}
+                {truncatedDescription}
               </Text>
             )}
           </Box>

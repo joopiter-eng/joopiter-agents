@@ -50,6 +50,7 @@ export function ApprovalPanel({
     }
     return toolDescription;
   }, [toolPart, state.skills, toolDescription]);
+
   // Determine available options based on whether a rule can be inferred
   const canSaveRule = inferredRule !== null;
 

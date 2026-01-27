@@ -83,18 +83,11 @@ export function getCommandSuggestions(
   const skillSuggestions = skills
     .filter((skill) => skill.options.userInvocable !== false)
     .filter((skill) => skill.name.toLowerCase().includes(query))
-    .map((skill) => {
-      const maxLen = 50;
-      const truncated =
-        skill.description.length > maxLen
-          ? skill.description.slice(0, maxLen - 1) + "…"
-          : skill.description;
-      return {
-        value: skill.name,
-        display: `/${skill.name}`,
-        description: `(skill) ${truncated}`,
-      };
-    });
+    .map((skill) => ({
+      value: skill.name,
+      display: `/${skill.name}`,
+      description: skill.description,
+    }));
 
   // Merge and sort alphabetically by value
   return [...commandSuggestions, ...skillSuggestions].sort((a, b) =>

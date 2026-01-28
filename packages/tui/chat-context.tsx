@@ -221,14 +221,8 @@ export function ChatProvider({
   currentBranchRef.current = currentBranch;
 
   // Use ref for initialMessages to avoid recreating chat when it changes
+  // On remount (for session switching), the ref is freshly initialized with the new value
   const initialMessagesRef = useRef(initialMessages);
-  // Only set on first render - don't update on subsequent renders
-  if (
-    initialMessagesRef.current === undefined &&
-    initialMessages !== undefined
-  ) {
-    initialMessagesRef.current = initialMessages;
-  }
 
   const effectiveModel = settings.modelId ?? model ?? "";
   const contextLimit = useMemo(

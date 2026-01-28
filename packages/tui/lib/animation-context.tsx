@@ -135,29 +135,37 @@ export function useTick() {
  * Track elapsed time for a specific task/operation.
  * Returns seconds elapsed since isRunning became true.
  *
+ * Uses absolute timestamps (Date.now()) to avoid issues when the global
+ * tick resets (e.g., when streaming restarts for a new message).
+ *
  * @param isRunning - Whether this specific operation is running
  * @returns Elapsed seconds (0 if not running or not yet started)
  */
 export function useElapsedTime(isRunning: boolean): number {
+  // Use tick only to trigger re-renders, not for time calculation
   const { tick } = useAnimation();
-  const startTickRef = useRef<number | null>(null);
+  // Store absolute start time to avoid issues when tick resets
+  const startTimeRef = useRef<number | null>(null);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
-  // Capture start tick when running begins
+  // Capture absolute start time when running begins
   useEffect(() => {
-    if (isRunning && startTickRef.current === null) {
-      startTickRef.current = tick;
-    } else if (!isRunning) {
-      // Don't reset - preserve final elapsed time
+    if (isRunning && startTimeRef.current === null) {
+      startTimeRef.current = Date.now();
+    }
+  }, [isRunning]);
+
+  // Update elapsed seconds based on absolute time difference
+  // Uses tick as a trigger for recalculation
+  useEffect(() => {
+    if (isRunning && startTimeRef.current !== null) {
+      setElapsedSeconds(Math.floor((Date.now() - startTimeRef.current) / 1000));
     }
   }, [isRunning, tick]);
 
-  if (!isRunning && startTickRef.current === null) {
+  if (!isRunning && startTimeRef.current === null) {
     return 0;
   }
 
-  if (startTickRef.current === null) {
-    return 0;
-  }
-
-  return tick - startTickRef.current;
+  return elapsedSeconds;
 }

@@ -56,8 +56,14 @@ export function generateCollapsedSummary(
         })
         .filter(Boolean);
 
-      if (files.length <= 3) {
-        return `Read ${files.join(", ")}`;
+      if (files.length === 1) {
+        return `Read ${files[0]}`;
+      }
+      if (files.length === 2) {
+        return `Read ${files[0]} and ${files[1]}`;
+      }
+      if (files.length === 3) {
+        return `Read ${files[0]}, ${files[1]}, and ${files[2]}`;
       }
       return `Read ${count} files`;
     }

@@ -71,6 +71,7 @@ import {
   type SandboxInfo,
   useSessionChatContext,
 } from "./session-chat-context";
+import "streamdown/styles.css";
 
 const customComponents = {
   pre: ({ children, ...props }: ComponentProps<"pre">) => {
@@ -1775,6 +1776,11 @@ export function SessionChatContent() {
                           ) : (
                             <div className="max-w-[80%]">
                               <Streamdown
+                                animated={{
+                                  animation: "fadeIn",
+                                  duration: 250,
+                                  easing: "ease-out",
+                                }}
                                 mode={
                                   isMessageStreaming ? "streaming" : "static"
                                 }

@@ -4,14 +4,25 @@ import useSWR from "swr";
 import type { Chat } from "@/lib/db/schema";
 import { fetcher } from "@/lib/swr";
 
+export type SessionChatListItem = Chat & {
+  hasUnread: boolean;
+  isStreaming: boolean;
+};
+
 interface ChatsResponse {
-  chats: Chat[];
+  chats: SessionChatListItem[];
 }
 
 export function useSessionChats(sessionId: string | null) {
   const { data, error, isLoading, mutate } = useSWR<ChatsResponse>(
     sessionId ? `/api/sessions/${sessionId}/chats` : null,
     fetcher,
+    {
+      refreshInterval: (latestData) =>
+        latestData?.chats.some((chat) => chat.isStreaming) ? 1_000 : 5_000,
+      refreshWhenHidden: false,
+      revalidateOnFocus: true,
+    },
   );
 
   const chats = data?.chats ?? [];
@@ -33,7 +44,14 @@ export function useSessionChats(sessionId: string | null) {
 
     await mutate(
       (current) => ({
-        chats: [responseData.chat!, ...(current?.chats ?? [])],
+        chats: [
+          {
+            ...responseData.chat!,
+            hasUnread: false,
+            isStreaming: false,
+          },
+          ...(current?.chats ?? []),
+        ],
       }),
       { revalidate: false },
     );
@@ -61,7 +79,7 @@ export function useSessionChats(sessionId: string | null) {
     await mutate(
       (current) => ({
         chats: (current?.chats ?? []).map((chat) =>
-          chat.id === chatId ? updatedChat : chat,
+          chat.id === chatId ? { ...chat, ...updatedChat } : chat,
         ),
       }),
       { revalidate: false },
@@ -96,6 +114,34 @@ export function useSessionChats(sessionId: string | null) {
     );
   };
 
+  const markChatRead = async (chatId: string) => {
+    if (!sessionId) {
+      throw new Error("Missing sessionId");
+    }
+
+    const res = await fetch(`/api/sessions/${sessionId}/chats/${chatId}/read`, {
+      method: "POST",
+    });
+
+    const responseData = (await res.json()) as {
+      success?: boolean;
+      error?: string;
+    };
+
+    if (!res.ok || !responseData.success) {
+      throw new Error(responseData.error ?? "Failed to mark chat as read");
+    }
+
+    await mutate(
+      (current) => ({
+        chats: (current?.chats ?? []).map((chat) =>
+          chat.id === chatId ? { ...chat, hasUnread: false } : chat,
+        ),
+      }),
+      { revalidate: false },
+    );
+  };
+
   return {
     chats,
     loading: isLoading,
@@ -103,6 +149,7 @@ export function useSessionChats(sessionId: string | null) {
     createChat,
     renameChat,
     deleteChat,
+    markChatRead,
     refreshChats: mutate,
   };
 }

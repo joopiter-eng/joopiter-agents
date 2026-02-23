@@ -1882,9 +1882,7 @@ export function SessionChatContent() {
                     }}
                   >
                     <GitCommit className="h-4 w-4 md:mr-2" />
-                    <span className="hidden md:inline">
-                      Commit &amp; Push
-                    </span>
+                    <span className="hidden md:inline">Commit &amp; Push</span>
                   </Button>
                 ) : (
                   <Button

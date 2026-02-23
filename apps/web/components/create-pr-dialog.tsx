@@ -192,7 +192,13 @@ export function CreatePRDialog({
         setStep("generate");
       }
     }
-  }, [isCheckingStatus, open, needsNewBranch, hasUncommittedChanges, commitAndPushMode]);
+  }, [
+    isCheckingStatus,
+    open,
+    needsNewBranch,
+    hasUncommittedChanges,
+    commitAndPushMode,
+  ]);
 
   const fetchBranches = useCallback(async () => {
     setIsLoadingBranches(true);
@@ -443,10 +449,10 @@ export function CreatePRDialog({
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>
-              {commitAndPushMode
-                ? "Commit & Push Changes"
-                : "Create Pull Request"}
-            </DialogTitle>
+            {commitAndPushMode
+              ? "Commit & Push Changes"
+              : "Create Pull Request"}
+          </DialogTitle>
           <DialogDescription>
             {session.repoOwner}/{session.repoName} - {displayBranch}
           </DialogDescription>

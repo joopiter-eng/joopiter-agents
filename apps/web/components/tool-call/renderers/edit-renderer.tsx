@@ -3,7 +3,7 @@
 import { toRelativePath } from "@open-harness/shared/lib/tool-state";
 import { MultiFileDiff } from "@pierre/diffs/react";
 import { Loader2 } from "lucide-react";
-import { useState } from "react";
+import { useState, type KeyboardEvent } from "react";
 import type { ToolRendererProps } from "@/app/lib/render-tool";
 import { defaultDiffOptions } from "@/lib/diffs-config";
 import { cn } from "@/lib/utils";
@@ -46,9 +46,40 @@ export function EditRenderer({
           ? "bg-red-500"
           : "bg-green-500";
 
+  const hasExpandableContent = oldString.length > 200 || newString.length > 200;
+
+  const handleClick = () => {
+    if (hasExpandableContent) {
+      setIsExpanded((current) => !current);
+    }
+  };
+
+  const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    if ((e.key === "Enter" || e.key === " ") && hasExpandableContent) {
+      e.preventDefault();
+      setIsExpanded((current) => !current);
+    }
+  };
+
+  const headerInteractionProps = hasExpandableContent
+    ? {
+        onClick: handleClick,
+        onKeyDown: handleKeyDown,
+        role: "button" as const,
+        tabIndex: 0,
+        "aria-expanded": isExpanded,
+      }
+    : {};
+
   return (
     <div className="my-2 rounded-lg border border-border bg-card p-3">
-      <div className="flex min-w-0 items-center gap-2">
+      <div
+        className={cn(
+          "flex min-w-0 items-center gap-2",
+          hasExpandableContent && "cursor-pointer",
+        )}
+        {...headerInteractionProps}
+      >
         {mergedState.interrupted ? (
           <span className="inline-block h-2 w-2 rounded-full border border-yellow-500" />
         ) : mergedState.running ? (
@@ -85,22 +116,17 @@ export function EditRenderer({
         )}
 
       {showDiff && !mergedState.approvalRequested && !mergedState.denied && (
-        <div className="ml-5 mt-2 space-y-2">
-          <div className={cn(!isExpanded && "max-h-96 overflow-auto")}>
-            <MultiFileDiff
-              oldFile={{ name: rawFilePath, contents: oldString }}
-              newFile={{ name: rawFilePath, contents: newString }}
-              options={defaultDiffOptions}
-            />
-          </div>
-
-          <button
-            type="button"
-            onClick={() => setIsExpanded((current) => !current)}
-            className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
-          >
-            {isExpanded ? "Collapse diff" : "Expand to full diff"}
-          </button>
+        <div
+          className={cn(
+            "ml-5 mt-2",
+            isExpanded ? "max-h-96 overflow-auto" : "max-h-40 overflow-hidden",
+          )}
+        >
+          <MultiFileDiff
+            oldFile={{ name: rawFilePath, contents: oldString }}
+            newFile={{ name: rawFilePath, contents: newString }}
+            options={defaultDiffOptions}
+          />
         </div>
       )}
 

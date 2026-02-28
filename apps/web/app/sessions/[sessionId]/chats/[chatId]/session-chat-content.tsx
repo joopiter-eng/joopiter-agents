@@ -2259,7 +2259,6 @@ export function SessionChatContent({ initialModels }: SessionChatContentProps) {
                   </Button>
                 ) : (
                   <Button
-                    variant="outline"
                     size="sm"
                     onClick={() => {
                       const prUrl = `https://github.com/${session.repoOwner}/${session.repoName}/pull/${session.prNumber}`;

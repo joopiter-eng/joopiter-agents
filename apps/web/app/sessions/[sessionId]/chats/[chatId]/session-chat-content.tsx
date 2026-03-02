@@ -2274,7 +2274,6 @@ export function SessionChatContent({ initialModels }: SessionChatContentProps) {
                 ) : (
                   <Button
                     size="sm"
-                    disabled={isGitActionDisabled}
                     onClick={() => {
                       const prUrl = `https://github.com/${session.repoOwner}/${session.repoName}/pull/${session.prNumber}`;
                       window.open(prUrl, "_blank", "noopener,noreferrer");

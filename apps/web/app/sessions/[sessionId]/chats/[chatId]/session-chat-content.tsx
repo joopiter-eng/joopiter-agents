@@ -422,7 +422,63 @@ function formatElapsed(ms: number): string {
   return `${minutes}m ${seconds.toString().padStart(2, "0")}s`;
 }
 
-function WorkingIndicator({ startedAt }: { startedAt: number }) {
+type WorkingTodoSummary = {
+  total: number;
+  completed: number;
+  inProgress: number;
+};
+
+function summarizeTodoProgress(
+  parts: WebAgentUIMessagePart[],
+): WorkingTodoSummary | null {
+  let latestTodos: Array<{ status?: unknown } | undefined> | null = null;
+
+  for (const part of parts) {
+    if (!isToolUIPart(part) || part.type !== "tool-todo_write") {
+      continue;
+    }
+
+    const candidateTodos = part.input?.todos;
+    if (Array.isArray(candidateTodos)) {
+      latestTodos = candidateTodos;
+    }
+  }
+
+  if (!latestTodos || latestTodos.length === 0) {
+    return null;
+  }
+
+  const normalizedTodos = latestTodos.filter(
+    (todo): todo is { status?: unknown } => Boolean(todo),
+  );
+
+  if (normalizedTodos.length === 0) {
+    return null;
+  }
+
+  const completed = normalizedTodos.filter(
+    (todo) => todo.status === "completed",
+  ).length;
+  const inProgress = normalizedTodos.filter(
+    (todo) => todo.status === "in_progress",
+  ).length;
+
+  return {
+    total: normalizedTodos.length,
+    completed,
+    inProgress,
+  };
+}
+
+function WorkingIndicator({
+  startedAt,
+  toolCallCount,
+  todoSummary,
+}: {
+  startedAt: number;
+  toolCallCount: number;
+  todoSummary?: WorkingTodoSummary;
+}) {
   const [, setTick] = useState(0);
 
   useEffect(() => {
@@ -431,6 +487,11 @@ function WorkingIndicator({ startedAt }: { startedAt: number }) {
   }, []);
 
   const elapsed = Date.now() - startedAt;
+  const todoLabel = todoSummary
+    ? `Todo ${todoSummary.completed}/${todoSummary.total}${
+        todoSummary.inProgress > 0 ? ` (${todoSummary.inProgress} active)` : ""
+      }`
+    : null;
 
   return (
     <div className="flex items-center gap-2 py-2">
@@ -440,6 +501,15 @@ function WorkingIndicator({ startedAt }: { startedAt: number }) {
         <span className="tabular-nums text-muted-foreground/60">
           {formatElapsed(elapsed)}
         </span>
+        {toolCallCount > 0 && (
+          <span className="text-muted-foreground/50">
+            {" "}
+            • {toolCallCount} tool call{toolCallCount === 1 ? "" : "s"}
+          </span>
+        )}
+        {todoLabel && (
+          <span className="text-muted-foreground/50"> • {todoLabel}</span>
+        )}
       </span>
     </div>
   );
@@ -954,6 +1024,62 @@ export function SessionChatContent({ initialModels }: SessionChatContentProps) {
     // Last resort fallback
     workingStartedAtRef.current = Date.now();
   }, [showThinkingIndicator, renderMessages, messageTimestamps]);
+
+  const workingTelemetry = useMemo<{
+    toolCallCount: number;
+    todoSummary: WorkingTodoSummary | null;
+  }>(() => {
+    let lastUserIndex = -1;
+    for (let i = renderMessages.length - 1; i >= 0; i--) {
+      if (renderMessages[i]?.role === "user") {
+        lastUserIndex = i;
+        break;
+      }
+    }
+
+    if (lastUserIndex === -1) {
+      return {
+        toolCallCount: 0,
+        todoSummary: null,
+      };
+    }
+
+    let currentAssistantMessage: WebAgentUIMessage | null = null;
+    for (let i = renderMessages.length - 1; i > lastUserIndex; i--) {
+      const message = renderMessages[i];
+      if (message?.role === "assistant") {
+        currentAssistantMessage = message;
+        break;
+      }
+    }
+
+    if (!currentAssistantMessage) {
+      return {
+        toolCallCount: 0,
+        todoSummary: null,
+      };
+    }
+
+    const toolCallIds = new Set<string>();
+    let toolPartsWithoutId = 0;
+
+    for (const part of currentAssistantMessage.parts) {
+      if (!isToolUIPart(part)) {
+        continue;
+      }
+
+      if (part.toolCallId) {
+        toolCallIds.add(part.toolCallId);
+      } else {
+        toolPartsWithoutId += 1;
+      }
+    }
+
+    return {
+      toolCallCount: toolCallIds.size + toolPartsWithoutId,
+      todoSummary: summarizeTodoProgress(currentAssistantMessage.parts),
+    };
+  }, [renderMessages]);
 
   const groupedRenderMessages = useMemo<GroupedRenderMessage[]>(() => {
     return renderMessages.map((message, messageIndex) => {
@@ -2390,6 +2516,8 @@ export function SessionChatContent({ initialModels }: SessionChatContentProps) {
               {showThinkingIndicator && (
                 <WorkingIndicator
                   startedAt={workingStartedAtRef.current || Date.now()}
+                  toolCallCount={workingTelemetry.toolCallCount}
+                  todoSummary={workingTelemetry.todoSummary ?? undefined}
                 />
               )}
             </div>

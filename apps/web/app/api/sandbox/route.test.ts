@@ -23,6 +23,7 @@ const updateCalls: Array<{
 const connectConfigs: unknown[] = [];
 
 let sessionRecord: TestSessionRecord;
+let defaultSandboxSnapshotPreset: "default" | "browser" = "default";
 
 function isConnectConfig(value: unknown): value is {
   state: {
@@ -66,6 +67,15 @@ mock.module("@/lib/db/accounts", () => ({
     accessToken: "token",
     refreshToken: null,
     expiresAt: null,
+  }),
+}));
+
+mock.module("@/lib/db/user-preferences", () => ({
+  getUserPreferences: async () => ({
+    defaultModelId: "anthropic/claude-haiku-4.5",
+    defaultSubagentModelId: null,
+    defaultSandboxType: "vercel",
+    defaultSandboxSnapshotPreset,
   }),
 }));
 
@@ -136,6 +146,7 @@ describe("/api/sandbox lifecycle kicks", () => {
     kickCalls.length = 0;
     updateCalls.length = 0;
     connectConfigs.length = 0;
+    defaultSandboxSnapshotPreset = "default";
     sessionRecord = {
       id: "session-1",
       userId: "user-1",
@@ -190,6 +201,35 @@ describe("/api/sandbox lifecycle kicks", () => {
 
     expect(vercelConfig?.options?.gitUser?.email).toBe(
       "12345+nico-gh@users.noreply.github.com",
+    );
+  });
+
+  test("uses browser snapshot preset when user preference is set", async () => {
+    defaultSandboxSnapshotPreset = "browser";
+    const { POST } = await routeModulePromise;
+
+    const request = new Request("http://localhost/api/sandbox", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sessionId: "session-1",
+        sandboxType: "vercel",
+      }),
+    });
+
+    const response = await POST(request);
+    expect(response.ok).toBe(true);
+
+    const vercelConfig = connectConfigs.find(
+      (config) => isConnectConfig(config) && config.state.type === "vercel",
+    ) as
+      | {
+          options?: { baseSnapshotId?: string };
+        }
+      | undefined;
+
+    expect(vercelConfig?.options?.baseSnapshotId).toBe(
+      "snap_C8tUFhwRXZky4MaFvTuwO7DH66wx",
     );
   });
 });

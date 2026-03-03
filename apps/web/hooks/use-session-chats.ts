@@ -562,6 +562,8 @@ export function useSessionChats(
   };
 
   const setChatStreaming = async (chatId: string, isStreaming: boolean) => {
+    let shouldMutateCache = isStreaming;
+
     if (isStreaming) {
       activelyManagedStreaming.add(chatId);
       updateOverlay(chatId, (overlay) => {
@@ -577,16 +579,32 @@ export function useSessionChats(
         return next;
       });
     } else {
+      const wasActivelyManaged = activelyManagedStreaming.has(chatId);
       activelyManagedStreaming.delete(chatId);
+
+      let clearedOptimisticStreaming = false;
       updateOverlay(chatId, (overlay) => {
         const next = { ...overlay };
-        delete next.streaming;
-        // Record when streaming was cleared so the merge logic can suppress
-        // stale server responses that still report isStreaming: true (the
-        // server's onFinish hasn't cleared activeStreamId yet).
-        next.streamingClearedAt = Date.now();
+        if (next.streaming) {
+          delete next.streaming;
+          // Record when streaming was cleared so the merge logic can suppress
+          // stale server responses that still report isStreaming: true (the
+          // server's onFinish hasn't cleared activeStreamId yet).
+          next.streamingClearedAt = Date.now();
+          clearedOptimisticStreaming = true;
+        }
         return next;
       });
+
+      // If this chat was not actively streaming in this tab and there was no
+      // optimistic streaming overlay to clear, avoid forcing SWR cache to
+      // isStreaming=false. That prevents route-entry cleanup from hiding a real
+      // server-side stream (e.g. another tab/client) until the next poll.
+      shouldMutateCache = wasActivelyManaged || clearedOptimisticStreaming;
+    }
+
+    if (!shouldMutateCache) {
+      return;
     }
 
     await mutate(

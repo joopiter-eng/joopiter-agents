@@ -103,6 +103,7 @@ import {
 } from "@/lib/chat-streaming-state";
 import { ACCEPT_IMAGE_TYPES, isValidImageType } from "@/lib/image-utils";
 import { DEFAULT_CONTEXT_LIMIT } from "@/lib/models";
+import { getPrDeploymentRefreshInterval } from "@/lib/pr-deployment-polling";
 import { DEFAULT_SANDBOX_TIMEOUT_MS } from "@/lib/sandbox/config";
 import { fetcher } from "@/lib/swr";
 import { streamdownPlugins } from "@/lib/streamdown-config";
@@ -2175,23 +2176,27 @@ export function SessionChatContent(_props: unknown) {
     hasExistingPr && session.repoOwner && session.repoName
       ? `https://github.com/${session.repoOwner}/${session.repoName}/pull/${session.prNumber}`
       : null;
-  const { data: prDeploymentData } = useSWR<PrDeploymentResponse>(
-    hasExistingPr
-      ? `/api/sessions/${session.id}/pr-deployment?prNumber=${session.prNumber}`
-      : null,
-    fetcher,
-    {
-      revalidateOnFocus: false,
-      revalidateOnReconnect: false,
-      // We stop polling once a deployment URL is found because Vercel preview
-      // URLs are expected to follow the PR branch and keep serving the latest
-      // deployment. If this assumption ever changes, force revalidation after
-      // commits (see onCommitted callback below).
-      refreshInterval: (latestData) =>
-        hasExistingPr && !latestData?.deploymentUrl ? 60_000 : 0,
-      shouldRetryOnError: false,
-    },
-  );
+  const { data: prDeploymentData, mutate: refreshPrDeployment } =
+    useSWR<PrDeploymentResponse>(
+      hasExistingPr
+        ? `/api/sessions/${session.id}/pr-deployment?prNumber=${session.prNumber}`
+        : null,
+      fetcher,
+      {
+        revalidateOnFocus: true,
+        revalidateOnReconnect: true,
+        // Poll while we're still waiting for the first deployment so the Preview
+        // action appears quickly after opening/creating the PR.
+        refreshInterval: (latestData) =>
+          getPrDeploymentRefreshInterval({
+            hasExistingPr,
+            deploymentUrl: latestData?.deploymentUrl,
+            documentHasFocus:
+              typeof document === "undefined" ? true : document.hasFocus(),
+          }),
+        shouldRetryOnError: false,
+      },
+    );
   const prDeploymentUrl = prDeploymentData?.deploymentUrl ?? null;
   const hasUncommittedGitChanges = gitStatus?.hasUncommittedChanges ?? false;
   const hasUnpushedCommits = gitStatus?.hasUnpushedCommits ?? false;
@@ -3301,6 +3306,7 @@ export function SessionChatContent(_props: unknown) {
           hasSandbox={sandboxInfo !== null}
           onPrDetected={(pr) => {
             updateSessionPullRequest(pr);
+            void refreshGitStatus().catch(() => {});
           }}
         />
       )}
@@ -3319,6 +3325,9 @@ export function SessionChatContent(_props: unknown) {
             refreshGitStatus().catch(() => {});
             refreshDiff().catch(() => {});
             refreshFiles().catch(() => {});
+            if (hasExistingPr) {
+              refreshPrDeployment().catch(() => {});
+            }
           }}
         />
       )}

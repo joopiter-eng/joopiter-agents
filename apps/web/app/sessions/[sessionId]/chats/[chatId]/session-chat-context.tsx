@@ -334,6 +334,7 @@ export function SessionChatProvider({
         api: "/api/chat",
         body: () => {
           const requestContextLimit = contextLimitRef.current;
+          const requestSkillSuggestions = skillsRef.current;
           return {
             sessionId: sessionRecord.id,
             chatId: chatInfo.id,
@@ -344,7 +345,35 @@ export function SessionChatProvider({
                   },
                 }
               : {}),
+            ...(requestSkillSuggestions && requestSkillSuggestions.length > 0
+              ? {
+                  skillSuggestions: requestSkillSuggestions,
+                }
+              : {}),
           };
+        },
+        onChatSendMessage: (response) => {
+          const workflowRunId = response.headers.get("x-workflow-run-id");
+          if (!workflowRunId) {
+            return;
+          }
+
+          setChatInfo((prev) => ({
+            ...prev,
+            workflowRunId,
+            workflowState: "running",
+            workflowError: null,
+          }));
+        },
+        onChatEnd: () => {
+          setChatInfo((prev) => ({
+            ...prev,
+            activeStreamId: null,
+            workflowState:
+              prev.workflowRunId && prev.workflowState !== "cancelled"
+                ? "idle"
+                : prev.workflowState,
+          }));
         },
         prepareReconnectToStreamRequest: ({ id }) => ({
           api: `/api/chat/${id}/stream`,
@@ -376,6 +405,13 @@ export function SessionChatProvider({
     userStoppedRef.current = true;
     void chatInstance.stop();
     abortChatInstanceTransport(chatInfo.id);
+    setChatInfo((prev) => ({
+      ...prev,
+      workflowRunId: null,
+      activeStreamId: null,
+      workflowState: "cancelled",
+      workflowError: null,
+    }));
   }, [chatInfo.id, chatInstance]);
 
   // Compute resume only once on mount. If this tracks `chatInstance.status`
@@ -931,6 +967,11 @@ export function SessionChatProvider({
     error: skillsError,
     refresh: refreshSkillsSWR,
   } = useSessionSkills(sessionRecord.id, sandboxConnected);
+  const skillsRef = useRef<SkillSuggestion[] | null>(skills);
+
+  useEffect(() => {
+    skillsRef.current = skills;
+  }, [skills]);
 
   // Update local session state when fresh diff data is received from the live sandbox.
   // This ensures cachedDiff is available when the sandbox disconnects.

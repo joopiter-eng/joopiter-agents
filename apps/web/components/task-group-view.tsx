@@ -2,7 +2,11 @@
 
 import { useState, useEffect, useRef } from "react";
 import { Loader2 } from "lucide-react";
-import type { TaskPendingToolCall, TaskToolUIPart } from "@open-harness/agent";
+import type {
+  TaskPendingToolCall,
+  TaskToolOutput,
+  TaskToolUIPart,
+} from "@open-harness/durable-agent";
 import { formatTokens, toRelativePath } from "@open-harness/shared";
 import { cn } from "@/lib/utils";
 import { DEFAULT_WORKING_DIRECTORY } from "@/lib/sandbox/config";
@@ -147,7 +151,7 @@ function TaskItem({
 
   const hasOutput = part.state === "output-available";
   const isComplete = hasOutput && !part.preliminary;
-  const output = hasOutput ? part.output : undefined;
+  const output = hasOutput ? (part.output as TaskToolOutput) : undefined;
   const startedAt =
     typeof output?.startedAt === "number" ? output.startedAt : undefined;
   const elapsedSeconds = useTaskTiming(isRunning, startedAt);

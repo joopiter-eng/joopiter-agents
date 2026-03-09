@@ -282,6 +282,9 @@ export async function getChatSummariesBySessionId(
       sessionId: chats.sessionId,
       title: chats.title,
       modelId: chats.modelId,
+      workflowRunId: chats.workflowRunId,
+      workflowState: chats.workflowState,
+      workflowError: chats.workflowError,
       activeStreamId: chats.activeStreamId,
       lastAssistantMessageAt: chats.lastAssistantMessageAt,
       createdAt: chats.createdAt,
@@ -351,6 +354,26 @@ export async function updateChatActiveStreamId(
     .update(chats)
     .set({ activeStreamId: streamId })
     .where(eq(chats.id, chatId));
+}
+
+export async function updateChatWorkflowRuntime(
+  chatId: string,
+  data: {
+    workflowRunId?: string | null;
+    workflowState?: "idle" | "running" | "waiting" | "failed" | "cancelled";
+    workflowError?: string | null;
+    activeStreamId?: string | null;
+  },
+) {
+  const [chat] = await db
+    .update(chats)
+    .set({
+      ...data,
+      updatedAt: new Date(),
+    })
+    .where(eq(chats.id, chatId))
+    .returning();
+  return chat;
 }
 
 /**

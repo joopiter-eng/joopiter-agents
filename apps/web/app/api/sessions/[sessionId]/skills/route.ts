@@ -1,4 +1,7 @@
-import { discoverSkills } from "@open-harness/agent";
+import {
+  discoverSkills,
+  type SkillPromptMetadata,
+} from "@open-harness/durable-agent";
 import { connectSandbox } from "@open-harness/sandbox";
 import { getSessionById, updateSession } from "@/lib/db/sessions";
 import { buildHibernatedLifecycleUpdate } from "@/lib/sandbox/lifecycle";
@@ -9,10 +12,7 @@ import {
 } from "@/lib/sandbox/utils";
 import { getServerSession } from "@/lib/session/get-server-session";
 
-export type SkillSuggestion = {
-  name: string;
-  description: string;
-};
+export type SkillSuggestion = SkillPromptMetadata;
 
 export type SkillsResponse = {
   skills: SkillSuggestion[];
@@ -95,6 +95,10 @@ export async function GET(_req: Request, context: RouteContext) {
       .map((skill) => ({
         name: skill.name,
         description: skill.description,
+        options: {
+          disableModelInvocation: skill.options.disableModelInvocation,
+          userInvocable: skill.options.userInvocable,
+        },
       }));
 
     const response: SkillsResponse = { skills: suggestions };

@@ -1,0 +1,34 @@
+{
+  "name": "@open-harness/durable-agent",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./index.ts",
+  "exports": {
+    ".": "./index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "oxlint",
+    "lint:fix": "oxlint --fix"
+  },
+  "dependencies": {
+    "@ai-sdk/anthropic": "catalog:",
+    "@ai-sdk/openai": "catalog:",
+    "@open-harness/sandbox": "workspace:*",
+    "@workflow/ai": "^4.0.1-beta.54",
+    "ai": "catalog:",
+    "workflow": "^4.1.0-beta.63",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@ai-sdk/devtools": "^0.0.15",
+    "@open-harness/tsconfig": "workspace:*",
+    "@types/bun": "latest",
+    "@types/node": "^22",
+    "oxlint": "^1.38.0"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  }
+}

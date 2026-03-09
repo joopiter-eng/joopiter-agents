@@ -1,6 +1,10 @@
 "use client";
 
-import type { AskUserQuestionInput, TaskToolUIPart } from "@open-harness/agent";
+import type {
+  AskUserQuestionInput,
+  AskUserQuestionOutput,
+  TaskToolUIPart,
+} from "@open-harness/durable-agent";
 import { isReasoningUIPart, isToolUIPart, type FileUIPart } from "ai";
 import {
   Archive,
@@ -2073,7 +2077,7 @@ export function SessionChatContent(_props: unknown) {
           ) {
             return {
               hasPendingQuestion: true,
-              pendingQuestionPart: p as {
+              pendingQuestionPart: p as unknown as {
                 type: "tool-ask_user_question";
                 toolCallId: string;
                 input: AskUserQuestionInput;
@@ -2097,8 +2101,8 @@ export function SessionChatContent(_props: unknown) {
         addToolOutput({
           tool: "ask_user_question",
           toolCallId: questionToolCallId,
-          output: { answers },
-        });
+          output: { answers } as unknown as AskUserQuestionOutput,
+        } as never);
       }
     },
     [questionToolCallId, addToolOutput],
@@ -2110,8 +2114,8 @@ export function SessionChatContent(_props: unknown) {
       addToolOutput({
         tool: "ask_user_question",
         toolCallId: questionToolCallId,
-        output: { declined: true },
-      });
+        output: { declined: true } as unknown as AskUserQuestionOutput,
+      } as never);
     }
   }, [questionToolCallId, addToolOutput]);
 

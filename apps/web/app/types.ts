@@ -5,12 +5,13 @@ import type {
   LanguageModelUsage,
   ToolUIPart,
 } from "ai";
-import type { webAgent } from "./config";
+import type {
+  createOpenHarnessDurableAgent,
+  createOpenHarnessToolSet,
+} from "@open-harness/durable-agent";
 
-export type WebAgent = typeof webAgent;
-export type WebAgentCallOptions = Parameters<
-  WebAgent["generate"]
->["0"]["options"];
+export type WebAgent = ReturnType<typeof createOpenHarnessDurableAgent>;
+export type WebAgentTools = ReturnType<typeof createOpenHarnessToolSet>;
 
 export type WebAgentMessageMetadata = {
   lastStepUsage?: LanguageModelUsage;
@@ -23,7 +24,6 @@ export type WebAgentUIMessage = InferAgentUIMessage<
   WebAgentMessageMetadata
 >;
 export type WebAgentUIMessagePart = WebAgentUIMessage["parts"][number];
-export type WebAgentTools = WebAgent["tools"];
 export type WebAgentUITools = InferUITools<WebAgentTools>;
 export type WebAgentUIToolPart =
   | DynamicToolUIPart

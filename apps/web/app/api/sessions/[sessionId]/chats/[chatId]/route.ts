@@ -1,4 +1,5 @@
 import { getServerSession } from "@/lib/session/get-server-session";
+import { resetChatWorkflowRuntime } from "@/lib/chat-workflow-runtime";
 import {
   deleteChat,
   getChatById,
@@ -67,6 +68,10 @@ export async function PATCH(req: Request, context: RouteContext) {
     return Response.json({ error: "Chat not found" }, { status: 404 });
   }
 
+  if (nextModelId && nextModelId !== chat.modelId) {
+    await resetChatWorkflowRuntime(chatId);
+  }
+
   return Response.json({ chat: updatedChat });
 }
 
@@ -99,6 +104,7 @@ export async function DELETE(_req: Request, context: RouteContext) {
     );
   }
 
+  await resetChatWorkflowRuntime(chatId);
   await deleteChat(chatId);
   return Response.json({ success: true });
 }

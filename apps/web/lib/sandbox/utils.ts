@@ -1,5 +1,5 @@
-import type { SandboxState } from "@open-harness/sandbox";
 import { SANDBOX_EXPIRES_BUFFER_MS } from "./config";
+import type { SandboxStateLike } from "./state";
 
 /**
  * Type guard to check if a sandbox is active and ready to accept operations.
@@ -13,8 +13,8 @@ import { SANDBOX_EXPIRES_BUFFER_MS } from "./config";
  * For operations on potentially expired sandboxes (snapshot, stop), use canOperateOnSandbox.
  */
 export function isSandboxActive(
-  state: SandboxState | null | undefined,
-): state is SandboxState {
+  state: SandboxStateLike | null | undefined,
+): state is SandboxStateLike {
   if (!state) return false;
 
   // Check expiration first (with 10s buffer for clock skew)
@@ -37,8 +37,8 @@ export function isSandboxActive(
  * snapshotted since they're not cloud-based.
  */
 export function canOperateOnSandbox(
-  state: SandboxState | null | undefined,
-): state is SandboxState {
+  state: SandboxStateLike | null | undefined,
+): state is SandboxStateLike {
   if (!state) return false;
 
   switch (state.type) {
@@ -115,7 +115,7 @@ export function isSandboxUnavailableError(message: string): boolean {
  * Check if the sandbox state has runtime state (active sandbox).
  * Used internally to determine if sandbox is currently running.
  */
-function hasRuntimeState(state: SandboxState): boolean {
+function hasRuntimeState(state: SandboxStateLike): boolean {
   switch (state.type) {
     case "vercel":
       return !!state.sandboxId;
@@ -134,8 +134,8 @@ function hasRuntimeState(state: SandboxState): boolean {
  * Returns a minimal SandboxState with only the type field.
  */
 export function clearSandboxState(
-  state: SandboxState | null | undefined,
-): SandboxState | null {
+  state: SandboxStateLike | null | undefined,
+): SandboxStateLike | null {
   if (!state) return null;
 
   // Create minimal state preserving only the type

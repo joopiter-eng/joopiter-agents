@@ -5,7 +5,7 @@ import { Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import type { AskUserQuestionInput } from "@open-harness/agent";
+import type { AskUserQuestionInput } from "@open-harness/durable-agent";
 
 type Question = AskUserQuestionInput["questions"][number];
 

@@ -1,46 +1,17 @@
 import "server-only";
 
-import {
-  connectSandbox,
-  type SandboxState,
-  type SnapshotResult,
-} from "@open-harness/sandbox";
 import { getSessionById, updateSession } from "@/lib/db/sessions";
-import {
-  SANDBOX_EXPIRES_BUFFER_MS,
-  SANDBOX_INACTIVITY_TIMEOUT_MS,
-} from "./config";
 import { canOperateOnSandbox, clearSandboxState } from "./utils";
-
-export type SandboxLifecycleState =
-  | "provisioning"
-  | "active"
-  | "hibernating"
-  | "hibernated"
-  | "restoring"
-  | "archived"
-  | "failed";
-
-export type SandboxLifecycleReason =
-  | "sandbox-created"
-  | "cloud-ready"
-  | "timeout-extended"
-  | "snapshot-restored"
-  | "reconnect"
-  | "manual-stop"
-  | "status-check-overdue";
-
-export interface SandboxLifecycleEvaluationResult {
-  action: "skipped" | "hibernated" | "failed";
-  reason?: string;
-}
-
-interface LifecycleTimingSource {
-  hibernateAfter: Date | null;
-  lastActivityAt: Date | null;
-  sandboxExpiresAt: Date | null;
-  updatedAt: Date;
-}
+import {
+  buildActiveLifecycleUpdate,
+  buildHibernatedLifecycleUpdate,
+  getNextLifecycleVersion,
+  getLifecycleDueAtMs,
+  getSandboxExpiresAtDate,
+  getSandboxExpiresAtMs,
+  type SandboxLifecycleEvaluationResult,
+  type SandboxLifecycleReason,
+} from "./lifecycle-state";
 
 function extractSnapshotConflictDetails(error: unknown): string {
   const parts: string[] = [];
@@ -70,88 +41,6 @@ function isSnapshotAlreadyInProgressError(error: unknown): boolean {
     details.includes("sandbox_snapshotting") ||
     details.includes("creating a snapshot and will be stopped shortly")
   );
-}
-
-type LifecycleUpdate = Parameters<typeof updateSession>[1];
-
-export function getNextLifecycleVersion(
-  currentVersion: number | null | undefined,
-): number {
-  return (currentVersion ?? 0) + 1;
-}
-
-export function getSandboxExpiresAtMs(
-  sandboxState: SandboxState | null | undefined,
-): number | undefined {
-  if (!sandboxState || !("expiresAt" in sandboxState)) {
-    return undefined;
-  }
-  return typeof sandboxState.expiresAt === "number"
-    ? sandboxState.expiresAt
-    : undefined;
-}
-
-export function getSandboxExpiresAtDate(
-  sandboxState: SandboxState | null | undefined,
-): Date | null {
-  const expiresAtMs = getSandboxExpiresAtMs(sandboxState);
-  return expiresAtMs === undefined ? null : new Date(expiresAtMs);
-}
-
-export function buildActiveLifecycleUpdate(
-  sandboxState: SandboxState | null | undefined,
-  options?: {
-    activityAt?: Date;
-    lifecycleState?: Extract<SandboxLifecycleState, "active" | "restoring">;
-  },
-): LifecycleUpdate {
-  const activityAt = options?.activityAt ?? new Date();
-
-  return {
-    lifecycleState: options?.lifecycleState ?? "active",
-    lifecycleError: null,
-    lastActivityAt: activityAt,
-    hibernateAfter: new Date(
-      activityAt.getTime() + SANDBOX_INACTIVITY_TIMEOUT_MS,
-    ),
-    sandboxExpiresAt: getSandboxExpiresAtDate(sandboxState),
-  };
-}
-
-export function buildHibernatedLifecycleUpdate(): LifecycleUpdate {
-  return {
-    lifecycleState: "hibernated",
-    sandboxExpiresAt: null,
-    hibernateAfter: null,
-    lifecycleRunId: null,
-    lifecycleError: null,
-  };
-}
-
-function getInactivityDueAtMs(source: LifecycleTimingSource): number {
-  if (source.hibernateAfter) {
-    return source.hibernateAfter.getTime();
-  }
-
-  const lastActivityMs =
-    source.lastActivityAt?.getTime() ?? source.updatedAt.getTime();
-  return lastActivityMs + SANDBOX_INACTIVITY_TIMEOUT_MS;
-}
-
-function getExpiryDueAtMs(source: LifecycleTimingSource): number | null {
-  if (!source.sandboxExpiresAt) {
-    return null;
-  }
-  return source.sandboxExpiresAt.getTime() - SANDBOX_EXPIRES_BUFFER_MS;
-}
-
-export function getLifecycleDueAtMs(source: LifecycleTimingSource): number {
-  const inactivityDueAtMs = getInactivityDueAtMs(source);
-  const expiryDueAtMs = getExpiryDueAtMs(source);
-  if (expiryDueAtMs === null) {
-    return inactivityDueAtMs;
-  }
-  return Math.min(inactivityDueAtMs, expiryDueAtMs);
 }
 
 /**
@@ -195,7 +84,10 @@ export async function evaluateSandboxLifecycle(
       lifecycleError: null,
     });
 
-    const sandbox = await connectSandbox(sandboxState);
+    const { connectSandbox } = await import("@open-harness/sandbox");
+    const sandbox = await connectSandbox(
+      sandboxState as Parameters<typeof connectSandbox>[0],
+    );
     if (!sandbox.snapshot) {
       await updateSession(sessionId, {
         ...buildActiveLifecycleUpdate(sandboxState),
@@ -203,7 +95,7 @@ export async function evaluateSandboxLifecycle(
       return { action: "skipped", reason: "snapshot-not-supported" };
     }
 
-    let snapshot: SnapshotResult;
+    let snapshot: { snapshotId: string };
     try {
       snapshot = await sandbox.snapshot();
     } catch (snapshotError) {
@@ -255,3 +147,13 @@ export async function evaluateSandboxLifecycle(
     return { action: "failed", reason: message };
   }
 }
+
+export {
+  buildActiveLifecycleUpdate,
+  buildHibernatedLifecycleUpdate,
+  getNextLifecycleVersion,
+  getLifecycleDueAtMs,
+  getSandboxExpiresAtDate,
+  getSandboxExpiresAtMs,
+};
+export type { SandboxLifecycleEvaluationResult, SandboxLifecycleReason };

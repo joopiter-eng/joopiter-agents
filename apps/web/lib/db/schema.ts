@@ -171,6 +171,13 @@ export const chats = pgTable(
       .references(() => sessions.id, { onDelete: "cascade" }),
     title: text("title").notNull(),
     modelId: text("model_id").default("anthropic/claude-haiku-4.5"),
+    workflowRunId: text("workflow_run_id"),
+    workflowState: text("workflow_state", {
+      enum: ["idle", "running", "waiting", "failed", "cancelled"],
+    })
+      .notNull()
+      .default("idle"),
+    workflowError: text("workflow_error"),
     activeStreamId: text("active_stream_id"),
     lastAssistantMessageAt: timestamp("last_assistant_message_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),

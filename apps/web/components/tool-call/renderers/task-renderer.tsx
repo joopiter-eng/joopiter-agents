@@ -1,6 +1,9 @@
 "use client";
 
-import type { TaskPendingToolCall } from "@open-harness/agent";
+import type {
+  TaskPendingToolCall,
+  TaskToolOutput,
+} from "@open-harness/durable-agent";
 import { formatTokens, toRelativePath } from "@open-harness/shared";
 import { Loader2 } from "lucide-react";
 import type React from "react";
@@ -116,7 +119,7 @@ export function TaskRenderer({
   const hasOutput = part.state === "output-available";
   const isPreliminary = hasOutput && part.preliminary === true;
   const isComplete = hasOutput && !isPreliminary;
-  const output = hasOutput ? part.output : undefined;
+  const output = hasOutput ? (part.output as TaskToolOutput) : undefined;
 
   const pendingToolCall = output?.pending ?? null;
   const toolCount =

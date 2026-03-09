@@ -7,21 +7,7 @@ type ChatInstanceInit = ConstructorParameters<
 
 type ManagedChatInstance = {
   instance: Chat<WebAgentUIMessage>;
-  transport: ChatInstanceInit["transport"];
 };
-
-type AbortableTransport = {
-  abort: () => void;
-};
-
-function isAbortableTransport(value: unknown): value is AbortableTransport {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "abort" in value &&
-    typeof value.abort === "function"
-  );
-}
 
 // Instances are scoped to an active chat route and removed on route teardown.
 // This avoids accumulating background streams/message buffers when users switch
@@ -33,14 +19,12 @@ export function getOrCreateChatInstance(
   init: ChatInstanceInit,
 ): {
   instance: Chat<WebAgentUIMessage>;
-  transport: ChatInstanceInit["transport"];
   alreadyExisted: boolean;
 } {
   const existing = chatInstances.get(chatId);
   if (existing) {
     return {
       instance: existing.instance,
-      transport: existing.transport,
       alreadyExisted: true,
     };
   }
@@ -48,24 +32,22 @@ export function getOrCreateChatInstance(
   const instance = new Chat<WebAgentUIMessage>(init);
   const managed = {
     instance,
-    transport: init.transport,
   };
   chatInstances.set(chatId, managed);
 
   return {
     instance,
-    transport: init.transport,
     alreadyExisted: false,
   };
 }
 
 export function abortChatInstanceTransport(chatId: string): void {
   const managed = chatInstances.get(chatId);
-  if (!managed || !isAbortableTransport(managed.transport)) {
+  if (!managed) {
     return;
   }
 
-  managed.transport.abort();
+  void managed.instance.stop();
 }
 
 export function removeChatInstance(chatId: string): void {

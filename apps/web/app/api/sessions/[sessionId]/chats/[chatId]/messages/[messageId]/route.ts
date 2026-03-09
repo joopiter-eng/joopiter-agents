@@ -4,6 +4,7 @@ import {
   getChatById,
   getSessionById,
 } from "@/lib/db/sessions";
+import { resetChatWorkflowRuntime } from "@/lib/chat-workflow-runtime";
 
 type RouteContext = {
   params: Promise<{ sessionId: string; chatId: string; messageId: string }>;
@@ -49,6 +50,8 @@ export async function DELETE(_req: Request, context: RouteContext) {
       { status: 400 },
     );
   }
+
+  await resetChatWorkflowRuntime(chatId);
 
   return Response.json({
     success: true,

@@ -2,11 +2,10 @@ import { sleep } from "workflow";
 import { getSessionById, updateSession } from "@/lib/db/sessions";
 import { SANDBOX_LIFECYCLE_MIN_SLEEP_MS } from "@/lib/sandbox/config";
 import {
-  evaluateSandboxLifecycle,
   getLifecycleDueAtMs,
   type SandboxLifecycleEvaluationResult,
   type SandboxLifecycleReason,
-} from "@/lib/sandbox/lifecycle";
+} from "@/lib/sandbox/lifecycle-state";
 import { canOperateOnSandbox } from "@/lib/sandbox/utils";
 
 interface LifecycleWakeDecision {
@@ -69,6 +68,7 @@ async function runLifecycleEvaluation(
   reason: SandboxLifecycleReason,
 ): Promise<SandboxLifecycleEvaluationResult> {
   "use step";
+  const { evaluateSandboxLifecycle } = await import("@/lib/sandbox/lifecycle");
   return evaluateSandboxLifecycle(sessionId, reason);
 }
 

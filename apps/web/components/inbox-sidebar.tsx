@@ -248,9 +248,9 @@ const SessionRow = memo(function SessionRow({
           className="block w-full text-left"
           aria-busy={isPending}
         >
-          <div className="flex items-baseline justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-2 pr-7">
             <p
-              className={`truncate text-sm ${
+              className={`min-w-0 flex-1 truncate text-sm ${
                 isUnread || isWorking
                   ? "font-semibold text-foreground"
                   : "font-medium text-foreground"
@@ -289,7 +289,7 @@ const SessionRow = memo(function SessionRow({
           <button
             type="button"
             onClick={(e) => e.stopPropagation()}
-            className="absolute right-2 top-2.5 rounded p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-background/60 hover:text-foreground group-focus-within:opacity-100 group-hover:opacity-100"
+            className="absolute right-2 top-2.5 rounded p-1 text-muted-foreground hover:bg-background/60 hover:text-foreground"
             aria-label={`Open menu for ${session.title}`}
           >
             <EllipsisVertical className="h-3 w-3" />

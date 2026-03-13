@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
+<meta charset="utf-8">
 <style>
   body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -10,7 +11,7 @@
     line-height: 1.8;
     padding: 0 20px;
   }
-  #content {
+  #visual {
     padding: 20px;
     border: 1px solid #e0e0e0;
     border-radius: 8px;
@@ -25,7 +26,6 @@
     font-size: 15px;
     font-weight: 600;
     cursor: pointer;
-    transition: background 0.15s;
   }
   button:hover { background: #006649; }
   button.copied { background: #1d1d1d; }
@@ -36,7 +36,7 @@
 <button onclick="copyContent()">Copy for Slack</button>
 <br><br>
 
-<div id="visual-content">
+<div id="visual">
   <p><b>Cooked</b></p>
   <ul>
     <li>Shipped ~25 PRs on Open Harness this week, highlights below</li>
@@ -63,18 +63,45 @@
 
 <script>
 function copyContent() {
-  // Build minimal, clean HTML that Slack can parse
-  const html = `<p><b>Cooked</b></p><ul><li>Shipped ~25 PRs on Open Harness this week, highlights below</li><li>Unified all tool renderers with a new <a href="https://github.com/vercel-labs/open-harness/pull/419">ToolLayout component</a>, plus added a <a href="https://github.com/vercel-labs/open-harness/pull/421">skill renderer</a> for tool call UI</li><li>Added <a href="https://github.com/vercel-labs/open-harness/pull/435">reasoning group support</a> for AI thinking blocks and <a href="https://github.com/vercel-labs/open-harness/pull/436">fixed the thinking UI flash</a> during streaming</li><li>Implemented <a href="https://github.com/vercel-labs/open-harness/pull/430">auto-commit with background push scheduling</a> and a <a href="https://github.com/vercel-labs/open-harness/pull/356">shared git flow client</a></li><li>Added <a href="https://github.com/vercel-labs/open-harness/pull/418">repository grouping in the sidebar</a>, <a href="https://github.com/vercel-labs/open-harness/pull/399">default diff mode preferences</a>, and <a href="https://github.com/vercel-labs/open-harness/pull/398">session dropdown timestamp alignment</a></li><li><a href="https://github.com/vercel-labs/open-harness/pull/424">KV-based caching</a> for skills discovery</li><li>Rendered <a href="https://github.com/vercel-labs/open-harness/pull/423">interrupted badges inline</a> in tool headers, added <a href="https://github.com/vercel-labs/open-harness/pull/431">exit codes to bash output</a>, and a <a href="https://github.com/vercel-labs/open-harness/pull/433">"View PR" button</a> in session chat</li><li>Removed legacy <a href="https://github.com/vercel-labs/open-harness/pull/425">hybrid sandbox type</a> and <a href="https://github.com/vercel-labs/open-harness/pull/429">just-bash web app sandbox</a> support</li><li>Fixed <a href="https://github.com/vercel-labs/open-harness/pull/411">GPT-5.4 reasoning sanitization</a> before agent calls, hardened <a href="https://github.com/vercel-labs/open-harness/pull/413">CI to checkout PR source branches</a></li><li>Opened a <a href="https://github.com/vercel/ai/pull/13210">fix on AI SDK</a> for normalizing encrypted reasoning metadata on split reasoning parts</li></ul><p><b>In Cook</b></p><ul><li>Migrating Open Harness web chat to <a href="https://github.com/vercel-labs/open-harness/pull/417">durable agent workflows</a> — the big effort this week</li><li>Prototyped the full approach in a personal repo: overhauled <a href="https://github.com/nicoalbanese/ai-sdk-tool-loop-agent-workflow/pull/5">workflow implementation</a> with persistence, aborting, and resumability</li><li>Opened PRs upstream on vercel/workflow for <a href="https://github.com/vercel/workflow/pull/1303">prepareStep support</a> and <a href="https://github.com/vercel/workflow/pull/1302">DurableAgent UI message type helpers</a></li><li>Opened a PR on vercel/sandbox for <a href="https://github.com/vercel/sandbox/pull/81">sandboxId-first top-level operations</a></li><li>Main <a href="https://github.com/vercel-labs/open-harness/pull/440">migration draft PR</a> is up on Open Harness along with <a href="https://github.com/vercel-labs/open-harness/pull/420">prep work</a> for serializable call options and stateless sandbox execution</li><li>Next up: <a href="https://github.com/nicoalbanese/ai-sdk-tool-loop-agent-workflow/pull/8">refactoring chat streaming</a> to use workflow-based readable streams</li></ul>`;
+  // Google Docs-style HTML that Slack reliably parses
+  const items = {
+    cooked: [
+      'Shipped ~25 PRs on Open Harness this week, highlights below',
+      'Unified all tool renderers with a new <a href="https://github.com/vercel-labs/open-harness/pull/419">ToolLayout component</a>, plus added a <a href="https://github.com/vercel-labs/open-harness/pull/421">skill renderer</a> for tool call UI',
+      'Added <a href="https://github.com/vercel-labs/open-harness/pull/435">reasoning group support</a> for AI thinking blocks and <a href="https://github.com/vercel-labs/open-harness/pull/436">fixed the thinking UI flash</a> during streaming',
+      'Implemented <a href="https://github.com/vercel-labs/open-harness/pull/430">auto-commit with background push scheduling</a> and a <a href="https://github.com/vercel-labs/open-harness/pull/356">shared git flow client</a>',
+      'Added <a href="https://github.com/vercel-labs/open-harness/pull/418">repository grouping in the sidebar</a>, <a href="https://github.com/vercel-labs/open-harness/pull/399">default diff mode preferences</a>, and <a href="https://github.com/vercel-labs/open-harness/pull/398">session dropdown timestamp alignment</a>',
+      '<a href="https://github.com/vercel-labs/open-harness/pull/424">KV-based caching</a> for skills discovery',
+      'Rendered <a href="https://github.com/vercel-labs/open-harness/pull/423">interrupted badges inline</a> in tool headers, added <a href="https://github.com/vercel-labs/open-harness/pull/431">exit codes to bash output</a>, and a <a href="https://github.com/vercel-labs/open-harness/pull/433">&quot;View PR&quot; button</a> in session chat',
+      'Removed legacy <a href="https://github.com/vercel-labs/open-harness/pull/425">hybrid sandbox type</a> and <a href="https://github.com/vercel-labs/open-harness/pull/429">just-bash web app sandbox</a> support',
+      'Fixed <a href="https://github.com/vercel-labs/open-harness/pull/411">GPT-5.4 reasoning sanitization</a> before agent calls, hardened <a href="https://github.com/vercel-labs/open-harness/pull/413">CI to checkout PR source branches</a>',
+      'Opened a <a href="https://github.com/vercel/ai/pull/13210">fix on AI SDK</a> for normalizing encrypted reasoning metadata on split reasoning parts',
+    ],
+    inCook: [
+      'Migrating Open Harness web chat to <a href="https://github.com/vercel-labs/open-harness/pull/417">durable agent workflows</a> — the big effort this week',
+      'Prototyped the full approach in a personal repo: overhauled <a href="https://github.com/nicoalbanese/ai-sdk-tool-loop-agent-workflow/pull/5">workflow implementation</a> with persistence, aborting, and resumability',
+      'Opened PRs upstream on vercel/workflow for <a href="https://github.com/vercel/workflow/pull/1303">prepareStep support</a> and <a href="https://github.com/vercel/workflow/pull/1302">DurableAgent UI message type helpers</a>',
+      'Opened a PR on vercel/sandbox for <a href="https://github.com/vercel/sandbox/pull/81">sandboxId-first top-level operations</a>',
+      'Main <a href="https://github.com/vercel-labs/open-harness/pull/440">migration draft PR</a> is up on Open Harness along with <a href="https://github.com/vercel-labs/open-harness/pull/420">prep work</a> for serializable call options and stateless sandbox execution',
+      'Next up: <a href="https://github.com/nicoalbanese/ai-sdk-tool-loop-agent-workflow/pull/8">refactoring chat streaming</a> to use workflow-based readable streams',
+    ]
+  };
 
-  const plain = document.getElementById('visual-content').innerText;
+  function buildList(arr) {
+    return '<ul>' + arr.map(i => '<li><p>' + i + '</p></li>').join('') + '</ul>';
+  }
 
-  const htmlBlob = new Blob([html], { type: 'text/html' });
-  const textBlob = new Blob([plain], { type: 'text/plain' });
+  const html = '<meta charset="utf-8"><b>Cooked</b>' + buildList(items.cooked) + '<b>In Cook</b>' + buildList(items.inCook);
+
+  const plain = 'Cooked\n' +
+    items.cooked.map(i => '• ' + i.replace(/<[^>]+>/g, '')).join('\n') +
+    '\n\nIn Cook\n' +
+    items.inCook.map(i => '• ' + i.replace(/<[^>]+>/g, '')).join('\n');
 
   navigator.clipboard.write([
     new ClipboardItem({
-      'text/html': htmlBlob,
-      'text/plain': textBlob
+      'text/html': new Blob([html], { type: 'text/html' }),
+      'text/plain': new Blob([plain], { type: 'text/plain' }),
     })
   ]).then(() => {
     const btn = document.querySelector('button');

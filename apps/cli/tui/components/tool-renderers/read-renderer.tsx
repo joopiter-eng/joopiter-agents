@@ -10,14 +10,27 @@ export function ReadRenderer({ part, state }: ToolRendererProps<"tool-read">) {
   const rawFilePath = isInputReady ? (part.input?.filePath ?? "...") : "...";
   const filePath =
     rawFilePath === "..." ? rawFilePath : toRelativePath(rawFilePath, cwd);
-  const lines =
-    part.state === "output-available" ? part.output?.totalLines : undefined;
+  const output = part.state === "output-available" ? part.output : undefined;
+  const totalLines = output?.totalLines;
+  const startLine = output?.startLine;
+  const endLine = output?.endLine;
+  const isPartialRead =
+    startLine !== undefined &&
+    endLine !== undefined &&
+    totalLines !== undefined &&
+    (startLine > 1 || endLine < totalLines);
+
+  const meta = isPartialRead
+    ? `lines ${startLine}–${endLine}`
+    : totalLines !== undefined
+      ? `${totalLines} lines`
+      : undefined;
 
   return (
     <ToolLayout
       name="Read"
       summary={filePath}
-      output={lines && <text fg="white">Read {lines} lines</text>}
+      output={meta && <text fg="white">{meta}</text>}
       state={state}
     />
   );

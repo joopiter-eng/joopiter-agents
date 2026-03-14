@@ -19,7 +19,14 @@ export function ReadRenderer({
   const limit = input?.limit;
 
   const output = part.state === "output-available" ? part.output : undefined;
-  const lines = output?.totalLines;
+  const totalLines = output?.totalLines;
+  const startLine = output?.startLine;
+  const endLine = output?.endLine;
+  const isPartialRead =
+    startLine !== undefined &&
+    endLine !== undefined &&
+    totalLines !== undefined &&
+    (startLine > 1 || endLine < totalLines);
   const outputError =
     output?.success === false ? (output?.error ?? "Read failed") : undefined;
 
@@ -61,7 +68,13 @@ export function ReadRenderer({
       name="Read"
       summary={filePath}
       summaryClassName="font-mono"
-      meta={lines !== undefined ? `${lines} lines` : undefined}
+      meta={
+        isPartialRead
+          ? `lines ${startLine}–${endLine}`
+          : totalLines !== undefined
+            ? `${totalLines} lines`
+            : undefined
+      }
       state={mergedState}
       expandedContent={expandedContent}
       onApprove={onApprove}

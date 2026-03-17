@@ -143,6 +143,7 @@ describe("chat workflow originalMessages handling", () => {
         finishReason: "tool-calls",
         usage: createUsage(1),
         sandboxState: undefined,
+        aborted: false,
       },
       {
         responseMessage: finalStepResponse,
@@ -150,6 +151,7 @@ describe("chat workflow originalMessages handling", () => {
         finishReason: "stop",
         usage: createUsage(2),
         sandboxState: undefined,
+        aborted: false,
       },
     ];
 
@@ -256,6 +258,67 @@ describe("chat workflow originalMessages handling", () => {
             reasoningTokens: 0,
           },
         },
+      },
+    ]);
+  });
+
+  test("persists a partial assistant response when a step is aborted", async () => {
+    const latestUserMessage = createMessage("user-1", "user", "Latest request");
+    const partialAssistantResponse = createMessage(
+      "assistant-1",
+      "assistant",
+      "Partial streamed response",
+    );
+
+    stepResults = [
+      {
+        responseMessage: partialAssistantResponse,
+        responseMessages: [],
+        finishReason: "stop",
+        usage: undefined,
+        sandboxState: undefined,
+        aborted: true,
+      },
+    ];
+
+    const { chatWorkflow } = await chatWorkflowModulePromise;
+    const result = await chatWorkflow({
+      userId: "user-1",
+      sessionId: "session-1",
+      chatId: "chat-1",
+      messages: [latestUserMessage],
+      requestStartedAtMs: 123,
+      model: { id: "anthropic/claude-haiku-4.5" },
+    });
+
+    expect(result).toEqual({
+      finishReason: "stop",
+      responseMessageId: "assistant-1",
+      totalMessageUsage: undefined,
+    });
+    expect(runChatAgentStepCalls).toEqual([
+      {
+        originalMessages: [latestUserMessage],
+        assistantId: "assistant-1",
+      },
+    ]);
+    expect(hasChatStreamOwnershipCalls).toEqual([]);
+    expect(sendFinishCalls).toEqual([
+      {
+        finishReason: "stop",
+        metadata: {},
+      },
+    ]);
+    expect(finalizeCalls).toEqual([
+      {
+        userId: "user-1",
+        sessionId: "session-1",
+        chatId: "chat-1",
+        ownedStreamToken: "stream-token-1",
+        responseMessage: partialAssistantResponse,
+        sandboxState: undefined,
+        modelId: "anthropic/claude-haiku-4.5",
+        totalMessageUsage: undefined,
       },
     ]);
   });

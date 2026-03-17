@@ -99,6 +99,7 @@ export async function chatWorkflow(input: ChatWorkflowInput) {
       );
 
       if (
+        stepResult.aborted ||
         stepResult.finishReason !== "tool-calls" ||
         shouldPauseForToolInteraction(stepResult.responseMessage.parts)
       ) {

@@ -23,6 +23,7 @@ import {
 import { recordUsage } from "@/lib/db/usage";
 import { buildActiveLifecycleUpdate } from "@/lib/sandbox/lifecycle";
 import { mergeLanguageModelUsage } from "./chat-shared";
+import { createChatStepAbortLifecycle } from "./chat-step-timeout";
 import {
   type ActiveSessionRecord,
   createWorkflowChatRuntime,
@@ -77,8 +78,9 @@ export interface ChatAgentStepResult {
   responseMessage: WebAgentUIMessage;
   responseMessages: ModelMessage[];
   finishReason: FinishReason;
-  usage: LanguageModelUsage;
+  usage: LanguageModelUsage | undefined;
   sandboxState: SandboxState | undefined;
+  aborted: boolean;
 }
 
 export async function runChatAgentStep(params: {
@@ -111,6 +113,9 @@ export async function runChatAgentStep(params: {
   ]);
 
   let responseMessage: WebAgentUIMessage | undefined;
+  let streamAborted = false;
+  let streamedFinishReason: FinishReason | undefined;
+  const abortLifecycle = createChatStepAbortLifecycle();
   const writable = getWritable<UIMessageChunk<WebAgentMessageMetadata>>();
   const writer = writable.getWriter();
 
@@ -132,6 +137,7 @@ export async function runChatAgentStep(params: {
           : {}),
         ...(skills.length > 0 ? { skills } : {}),
       },
+      abortSignal: abortLifecycle.signal,
     });
 
     for await (const part of result.toUIMessageStream<WebAgentUIMessage>({
@@ -146,8 +152,14 @@ export async function runChatAgentStep(params: {
 
         return undefined;
       },
-      onFinish: ({ responseMessage: finishedResponseMessage }) => {
+      onFinish: ({
+        responseMessage: finishedResponseMessage,
+        isAborted,
+        finishReason,
+      }) => {
         responseMessage = finishedResponseMessage;
+        streamAborted = isAborted;
+        streamedFinishReason = finishReason ?? (isAborted ? "stop" : undefined);
       },
     })) {
       await writer.write(part);
@@ -157,14 +169,28 @@ export async function runChatAgentStep(params: {
       throw new Error("Agent stream finished without a response message");
     }
 
+    const sandboxState = sandbox.getState?.() as SandboxState | undefined;
+    if (streamAborted) {
+      return {
+        responseMessage,
+        responseMessages: [],
+        finishReason: streamedFinishReason ?? "stop",
+        usage: undefined,
+        sandboxState,
+        aborted: true,
+      };
+    }
+
     return {
       responseMessage,
       responseMessages: (await result.response).messages,
       finishReason: await result.finishReason,
       usage: await result.usage,
-      sandboxState: sandbox.getState?.() as SandboxState | undefined,
+      sandboxState,
+      aborted: false,
     };
   } finally {
+    abortLifecycle.cleanup();
     writer.releaseLock();
   }
 }

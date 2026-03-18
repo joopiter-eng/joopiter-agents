@@ -64,6 +64,7 @@ export function ToolCallsSummaryBar({
   isExpanded,
   onToggle,
   isStreaming,
+  isInterrupted,
   toolCallCount,
   changedFiles,
   todoInfo,
@@ -74,6 +75,8 @@ export function ToolCallsSummaryBar({
   isExpanded: boolean;
   onToggle: () => void;
   isStreaming: boolean;
+  /** Whether the message was interrupted (tool calls still running when stream stopped). */
+  isInterrupted: boolean;
   toolCallCount: number;
   /** Unique file paths modified by write/edit tool calls in this turn. */
   changedFiles: string[];
@@ -178,9 +181,11 @@ export function ToolCallsSummaryBar({
           <span
             className={cn(
               "inline-block size-2 rounded-full",
-              isStreaming
-                ? "animate-pulse bg-muted-foreground"
-                : "bg-muted-foreground/50",
+              isInterrupted
+                ? "border border-yellow-500 bg-transparent"
+                : isStreaming
+                  ? "animate-pulse bg-muted-foreground"
+                  : "bg-muted-foreground/50",
             )}
           />
         </span>
@@ -202,6 +207,11 @@ export function ToolCallsSummaryBar({
             </span>
           )}
         </span>
+        {isInterrupted && (
+          <span className="inline-flex shrink-0 items-center rounded-full border border-yellow-500/30 bg-yellow-500/10 px-2 py-0.5 text-[11px] font-medium leading-none text-yellow-600 dark:text-yellow-400">
+            Interrupted
+          </span>
+        )}
         <ChevronRight
           className={cn(
             "size-3 shrink-0 text-muted-foreground/50 transition-transform duration-200 ease-out motion-reduce:transition-none",

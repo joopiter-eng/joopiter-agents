@@ -86,6 +86,22 @@ function messageHasActiveApproval(message: WebAgentUIMessage): boolean {
   );
 }
 
+/**
+ * Checks whether a message has any tool calls that were interrupted
+ * (still in a running state when streaming stopped).
+ */
+function messageHasInterruptedToolCalls(
+  message: WebAgentUIMessage,
+  isStreaming: boolean,
+): boolean {
+  if (isStreaming) return false;
+  return message.parts.some(
+    (p) =>
+      isToolUIPart(p) &&
+      (p.state === "input-streaming" || p.state === "input-available"),
+  );
+}
+
 export type AssistantMessageGroupsProps = {
   message: WebAgentUIMessage;
   isStreaming: boolean;
@@ -131,6 +147,11 @@ export function AssistantMessageGroups({
     [message],
   );
 
+  const isInterrupted = useMemo(
+    () => messageHasInterruptedToolCalls(message, isStreaming),
+    [message, isStreaming],
+  );
+
   // Force expand when there's an active approval the user needs to respond to
   const effectiveExpanded = isExpanded || hasActiveApproval;
 
@@ -145,6 +166,7 @@ export function AssistantMessageGroups({
         isExpanded={effectiveExpanded}
         onToggle={() => setIsExpanded((v) => !v)}
         isStreaming={isStreaming}
+        isInterrupted={isInterrupted}
         toolCallCount={toolCallCount}
         changedFiles={changedFiles}
         todoInfo={todoInfo}

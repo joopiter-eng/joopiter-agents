@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
+import * as sessionsDb from "@/lib/db/sessions";
 
 interface KickCall {
   sessionId: string;
@@ -29,6 +30,7 @@ mock.module("@/lib/session/get-server-session", () => ({
 }));
 
 mock.module("@/lib/db/sessions", () => ({
+  ...sessionsDb,
   getSessionById: async () => sessionRecord,
 }));
 

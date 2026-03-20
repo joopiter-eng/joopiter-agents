@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
+import { NextResponse } from "next/server";
+import * as sessionsDb from "@/lib/db/sessions";
 
 mock.module("server-only", () => ({}));
 
@@ -43,6 +45,7 @@ function isConnectConfig(value: unknown): value is {
 }
 
 mock.module("next/server", () => ({
+  NextResponse,
   after: (callback: () => void | Promise<void>) => {
     void callback();
   },
@@ -78,6 +81,7 @@ mock.module("@/lib/github/tarball", () => ({
 }));
 
 mock.module("@/lib/db/sessions", () => ({
+  ...sessionsDb,
   getSessionById: async () => sessionRecord,
   updateSession: async (sessionId: string, patch: Record<string, unknown>) => {
     updateCalls.push({ sessionId, patch });

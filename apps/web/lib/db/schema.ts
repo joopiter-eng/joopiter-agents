@@ -100,6 +100,28 @@ export const githubInstallations = pgTable(
   ],
 );
 
+export const vercelProjectLinks = pgTable(
+  "vercel_project_links",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    repoOwner: text("repo_owner").notNull(),
+    repoName: text("repo_name").notNull(),
+    projectId: text("project_id").notNull(),
+    projectName: text("project_name").notNull(),
+    teamId: text("team_id"),
+    teamSlug: text("team_slug"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.userId, table.repoOwner, table.repoName],
+    }),
+  ],
+);
+
 export const sessions = pgTable(
   "sessions",
   {
@@ -118,8 +140,15 @@ export const sessions = pgTable(
     repoName: text("repo_name"),
     branch: text("branch"),
     cloneUrl: text("clone_url"),
+    vercelProjectId: text("vercel_project_id"),
+    vercelProjectName: text("vercel_project_name"),
+    vercelTeamId: text("vercel_team_id"),
+    vercelTeamSlug: text("vercel_team_slug"),
     // Whether this session uses a new auto-generated branch
     isNewBranch: boolean("is_new_branch").default(false).notNull(),
+    // Optional per-session override for auto commit + push behavior.
+    // null means "use the user's default preference".
+    autoCommitPushOverride: boolean("auto_commit_push_override"),
     // Unified sandbox state
     sandboxState: jsonb("sandbox_state").$type<SandboxState>(),
     // Lifecycle orchestration state for sandbox management
@@ -226,6 +255,8 @@ export const chatReads = pgTable(
 
 export type Session = typeof sessions.$inferSelect;
 export type NewSession = typeof sessions.$inferInsert;
+export type VercelProjectLink = typeof vercelProjectLinks.$inferSelect;
+export type NewVercelProjectLink = typeof vercelProjectLinks.$inferInsert;
 export type Chat = typeof chats.$inferSelect;
 export type NewChat = typeof chats.$inferInsert;
 export type Share = typeof shares.$inferSelect;
@@ -266,39 +297,6 @@ export const linkedAccounts = pgTable(
 export type LinkedAccount = typeof linkedAccounts.$inferSelect;
 export type NewLinkedAccount = typeof linkedAccounts.$inferInsert;
 
-// CLI tokens for device flow authentication
-export const cliTokens = pgTable(
-  "cli_tokens",
-  {
-    id: text("id").primaryKey(),
-    userId: text("user_id").references(() => users.id, { onDelete: "cascade" }),
-    tokenHash: text("token_hash").notNull(),
-    // Encrypted access token - only populated during device flow, cleared after first retrieval
-    encryptedAccessToken: text("encrypted_access_token"),
-    deviceName: text("device_name"),
-    lastUsedAt: timestamp("last_used_at"),
-    expiresAt: timestamp("expires_at"),
-    // Device flow fields
-    deviceCode: text("device_code"),
-    userCode: text("user_code"),
-    deviceCodeExpiresAt: timestamp("device_code_expires_at"),
-    status: text("status", {
-      enum: ["pending", "active", "revoked"],
-    })
-      .notNull()
-      .default("pending"),
-    createdAt: timestamp("created_at").defaultNow().notNull(),
-  },
-  (table) => [
-    uniqueIndex("cli_tokens_token_hash_idx").on(table.tokenHash),
-    uniqueIndex("cli_tokens_device_code_idx").on(table.deviceCode),
-    uniqueIndex("cli_tokens_user_code_idx").on(table.userCode),
-  ],
-);
-
-export type CliToken = typeof cliTokens.$inferSelect;
-export type NewCliToken = typeof cliTokens.$inferInsert;
-
 // User preferences for settings
 export const userPreferences = pgTable("user_preferences", {
   id: text("id").primaryKey(),
@@ -311,8 +309,12 @@ export const userPreferences = pgTable("user_preferences", {
   ),
   defaultSubagentModelId: text("default_subagent_model_id"),
   defaultSandboxType: text("default_sandbox_type", {
-    enum: ["hybrid", "vercel", "just-bash"],
+    enum: ["vercel"],
   }).default("vercel"),
+  defaultDiffMode: text("default_diff_mode", {
+    enum: ["unified", "split"],
+  }).default("unified"),
+  autoCommitPush: boolean("auto_commit_push").notNull().default(false),
   modelVariants: jsonb("model_variants")
     .$type<ModelVariant[]>()
     .notNull()
@@ -330,7 +332,7 @@ export const usageEvents = pgTable("usage_events", {
   userId: text("user_id")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
-  source: text("source", { enum: ["web", "cli"] })
+  source: text("source", { enum: ["web"] })
     .notNull()
     .default("web"),
   agentType: text("agent_type", { enum: ["main", "subagent"] })

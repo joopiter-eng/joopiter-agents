@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 import { NextResponse } from "next/server";
 import * as sessionsDb from "@/lib/db/sessions";
+import { DEFAULT_SANDBOX_TIMEOUT_MS } from "@/lib/sandbox/config";
 
 mock.module("server-only", () => ({}));
 
@@ -8,13 +9,26 @@ interface TestSessionRecord {
   id: string;
   userId: string;
   lifecycleVersion: number;
-  sandboxState: { type: "vercel" | "hybrid" | "just-bash" };
+  sandboxState: { type: "vercel" };
+  vercelProjectId: string | null;
+  vercelTeamId: string | null;
 }
 
 interface KickCall {
   sessionId: string;
   reason: string;
-  scheduleBackgroundWork?: (callback: () => Promise<void>) => void;
+}
+
+interface ConnectConfig {
+  state: {
+    type: "vercel";
+    sandboxId?: string;
+  };
+  options?: {
+    gitUser?: {
+      email?: string;
+    };
+  };
 }
 
 const kickCalls: KickCall[] = [];
@@ -22,27 +36,14 @@ const updateCalls: Array<{
   sessionId: string;
   patch: Record<string, unknown>;
 }> = [];
-const connectConfigs: unknown[] = [];
+const connectConfigs: ConnectConfig[] = [];
+const writeFileCalls: Array<{ path: string; content: string }> = [];
+const dotenvSyncCalls: Array<Record<string, unknown>> = [];
 
 let sessionRecord: TestSessionRecord;
-
-function isConnectConfig(value: unknown): value is {
-  state: {
-    type: "vercel" | "hybrid" | "just-bash";
-    sandboxId?: string;
-  };
-} {
-  if (!value || typeof value !== "object") return false;
-  if (!("state" in value)) return false;
-  const state = value.state;
-  if (!state || typeof state !== "object") return false;
-  if (!("type" in state)) return false;
-  return (
-    state.type === "vercel" ||
-    state.type === "hybrid" ||
-    state.type === "just-bash"
-  );
-}
+let currentVercelToken: string | null;
+let currentDotenvContent: string;
+let currentDotenvError: Error | null;
 
 mock.module("next/server", () => ({
   NextResponse,
@@ -76,8 +77,20 @@ mock.module("@/lib/github/user-token", () => ({
   getUserGitHubToken: async () => null,
 }));
 
-mock.module("@/lib/github/tarball", () => ({
-  downloadAndExtractTarball: async () => ({ files: {} }),
+mock.module("@/lib/vercel/token", () => ({
+  getUserVercelToken: async () => currentVercelToken,
+}));
+
+mock.module("@/lib/vercel/projects", () => ({
+  buildDevelopmentDotenvFromVercelProject: async (
+    input: Record<string, unknown>,
+  ) => {
+    dotenvSyncCalls.push(input);
+    if (currentDotenvError) {
+      throw currentDotenvError;
+    }
+    return currentDotenvContent;
+  },
 }));
 
 mock.module("@/lib/db/sessions", () => ({
@@ -99,35 +112,20 @@ mock.module("@/lib/sandbox/lifecycle-kick", () => ({
 }));
 
 mock.module("@open-harness/sandbox", () => ({
-  connectSandbox: async (config: unknown) => {
+  connectSandbox: async (config: ConnectConfig) => {
     connectConfigs.push(config);
-
-    const nextState: {
-      type: "vercel" | "hybrid";
-      sandboxId: string;
-      expiresAt: number;
-    } = isConnectConfig(config)
-      ? config.state.type === "vercel"
-        ? {
-            type: "vercel",
-            sandboxId: "sbx-vercel-1",
-            expiresAt: Date.now() + 120_000,
-          }
-        : {
-            type: "hybrid",
-            sandboxId: config.state.sandboxId ?? "sbx-hybrid-1",
-            expiresAt: Date.now() + 120_000,
-          }
-      : {
-          type: "vercel",
-          sandboxId: "sbx-default-1",
-          expiresAt: Date.now() + 120_000,
-        };
 
     return {
       currentBranch: "main",
       workingDirectory: "/vercel/sandbox",
-      getState: () => nextState,
+      getState: () => ({
+        type: "vercel" as const,
+        sandboxId: config.state.sandboxId ?? "sbx-vercel-1",
+        expiresAt: Date.now() + 120_000,
+      }),
+      writeFile: async (path: string, content: string) => {
+        writeFileCalls.push({ path, content });
+      },
       stop: async () => {},
     };
   },
@@ -140,15 +138,22 @@ describe("/api/sandbox lifecycle kicks", () => {
     kickCalls.length = 0;
     updateCalls.length = 0;
     connectConfigs.length = 0;
+    writeFileCalls.length = 0;
+    dotenvSyncCalls.length = 0;
+    currentVercelToken = "vercel-token";
+    currentDotenvContent = 'API_KEY="secret"\n';
+    currentDotenvError = null;
     sessionRecord = {
       id: "session-1",
       userId: "user-1",
       lifecycleVersion: 3,
       sandboxState: { type: "vercel" },
+      vercelProjectId: "project-1",
+      vercelTeamId: "team-1",
     };
   });
 
-  test("reconnect branch kicks lifecycle immediately", async () => {
+  test("reconnect branch uses vercel sandbox and does not resync .env.local", async () => {
     const { POST } = await routeModulePromise;
 
     const request = new Request("http://localhost/api/sandbox", {
@@ -161,14 +166,23 @@ describe("/api/sandbox lifecycle kicks", () => {
     });
 
     const response = await POST(request);
+
     expect(response.ok).toBe(true);
-    expect(kickCalls.length).toBe(1);
-    expect(kickCalls[0]?.sessionId).toBe("session-1");
-    expect(kickCalls[0]?.reason).toBe("sandbox-created");
-    expect(kickCalls[0]?.scheduleBackgroundWork).toBeUndefined();
+    expect(kickCalls).toEqual([
+      {
+        sessionId: "session-1",
+        reason: "sandbox-created",
+      },
+    ]);
+    expect(connectConfigs[0]?.state).toEqual({
+      type: "vercel",
+      sandboxId: "sbx-existing-1",
+    });
+    expect(dotenvSyncCalls).toHaveLength(0);
+    expect(writeFileCalls).toHaveLength(0);
   });
 
-  test("new vercel sandbox kicks lifecycle immediately", async () => {
+  test("new vercel sandbox writes linked Development env vars to .env.local", async () => {
     const { POST } = await routeModulePromise;
 
     const request = new Request("http://localhost/api/sandbox", {
@@ -181,19 +195,85 @@ describe("/api/sandbox lifecycle kicks", () => {
     });
 
     const response = await POST(request);
+
     expect(response.ok).toBe(true);
-    expect(kickCalls.length).toBe(1);
-    expect(kickCalls[0]?.sessionId).toBe("session-1");
-    expect(kickCalls[0]?.reason).toBe("sandbox-created");
-    expect(kickCalls[0]?.scheduleBackgroundWork).toBeUndefined();
+    expect(kickCalls).toEqual([
+      {
+        sessionId: "session-1",
+        reason: "sandbox-created",
+      },
+    ]);
     expect(updateCalls.length).toBeGreaterThan(0);
-
-    const vercelConfig = connectConfigs.find(
-      (config) => isConnectConfig(config) && config.state.type === "vercel",
-    ) as { options?: { gitUser?: { email?: string } } } | undefined;
-
-    expect(vercelConfig?.options?.gitUser?.email).toBe(
+    expect(connectConfigs[0]?.options?.gitUser?.email).toBe(
       "12345+nico-gh@users.noreply.github.com",
     );
+    expect(dotenvSyncCalls).toEqual([
+      {
+        token: "vercel-token",
+        projectIdOrName: "project-1",
+        teamId: "team-1",
+      },
+    ]);
+    expect(writeFileCalls).toEqual([
+      {
+        path: "/vercel/sandbox/.env.local",
+        content: 'API_KEY="secret"\n',
+      },
+    ]);
+
+    const payload = (await response.json()) as {
+      timeout: number;
+      mode: string;
+    };
+    expect(payload.timeout).toBe(DEFAULT_SANDBOX_TIMEOUT_MS);
+    expect(payload.mode).toBe("vercel");
+  });
+
+  test("env sync failures do not block sandbox creation", async () => {
+    const { POST } = await routeModulePromise;
+
+    currentDotenvError = new Error("boom");
+
+    const response = await POST(
+      new Request("http://localhost/api/sandbox", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId: "session-1",
+          sandboxType: "vercel",
+        }),
+      }),
+    );
+
+    expect(response.ok).toBe(true);
+    expect(kickCalls).toEqual([
+      {
+        sessionId: "session-1",
+        reason: "sandbox-created",
+      },
+    ]);
+    expect(dotenvSyncCalls).toHaveLength(1);
+    expect(writeFileCalls).toHaveLength(0);
+  });
+
+  test("rejects unsupported sandbox types", async () => {
+    const { POST } = await routeModulePromise;
+
+    const request = new Request("http://localhost/api/sandbox", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sessionId: "session-1",
+        sandboxType: "invalid",
+      }),
+    });
+
+    const response = await POST(request);
+    const payload = (await response.json()) as { error: string };
+
+    expect(response.status).toBe(400);
+    expect(payload.error).toBe("Invalid sandbox type");
+    expect(connectConfigs).toHaveLength(0);
+    expect(kickCalls).toHaveLength(0);
   });
 });

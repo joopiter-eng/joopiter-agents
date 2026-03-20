@@ -8,6 +8,7 @@ import {
 export type TaskToolUsageEvent = {
   usage: LanguageModelUsage;
   modelId?: string;
+  toolCallId?: string;
 };
 
 function addTokenCounts(
@@ -103,23 +104,38 @@ function isLanguageModelUsage(value: unknown): value is LanguageModelUsage {
 
 function extractTaskOutputUsage(
   output: unknown,
+  toolCallId?: string,
 ): TaskToolUsageEvent | undefined {
   if (!isRecord(output)) {
     return undefined;
   }
+
+  // New output shape: {
+  //   usage?: LanguageModelUsage,
+  //   final?: ModelMessage[],
+  //   modelId?: string,
+  // }
+  const usage = output.usage;
+  const modelId =
+    typeof output.modelId === "string" ? output.modelId : undefined;
+  if (isLanguageModelUsage(usage)) {
+    return { usage, modelId, toolCallId };
+  }
+
+  // Legacy fallback: { metadata: { totalMessageUsage?, lastStepUsage?, modelId? } }
   const metadata = output.metadata;
   if (!isRecord(metadata)) {
     return undefined;
   }
-  const modelId =
+  const legacyModelId =
     typeof metadata.modelId === "string" ? metadata.modelId : undefined;
   const totalMessageUsage = metadata.totalMessageUsage;
   if (isLanguageModelUsage(totalMessageUsage)) {
-    return { usage: totalMessageUsage, modelId };
+    return { usage: totalMessageUsage, modelId: legacyModelId, toolCallId };
   }
   const lastStepUsage = metadata.lastStepUsage;
   if (isLanguageModelUsage(lastStepUsage)) {
-    return { usage: lastStepUsage, modelId };
+    return { usage: lastStepUsage, modelId: legacyModelId, toolCallId };
   }
   return undefined;
 }
@@ -139,7 +155,9 @@ export function collectTaskToolUsageEvents(
     if (!part.output) {
       continue;
     }
-    const usage = extractTaskOutputUsage(part.output);
+    const toolCallId =
+      typeof part.toolCallId === "string" ? part.toolCallId : undefined;
+    const usage = extractTaskOutputUsage(part.output, toolCallId);
     if (!usage) {
       continue;
     }

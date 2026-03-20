@@ -7,45 +7,34 @@
       "packages/*"
     ],
     "catalog": {
-      "ai": "^6.0.108",
-      "@ai-sdk/anthropic": "^3.0.53",
-      "@ai-sdk/openai": "^3.0.39",
-      "@ai-sdk/react": "^3.0.110",
+      "ai": "^6.0.127",
+      "@ai-sdk/anthropic": "^3.0.60",
+      "@ai-sdk/openai": "^3.0.45",
+      "@ai-sdk/react": "^3.0.129",
       "zod": "^4.3.6"
     }
   },
-  "overrides": {
-    "zod": "^4.3.6"
-  },
   "scripts": {
-    "cli": "AI_SDK_LOG_WARNINGS=true NODE_ENV=development OPEN_HARNESS_URL=http://localhost:3000 bun run apps/cli/index.ts",
     "web": "cd apps/web/ && bun run dev",
     "web:bot": "AGENT_WEB_AUTH_ENABLED=true AGENT_WEB_AUTH_CODE=${AGENT_WEB_AUTH_CODE:-local-agent-code} AGENT_WEB_AUTH_USER_ID=${AGENT_WEB_AUTH_USER_ID:-agent-user} JWE_SECRET=${JWE_SECRET:-MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY} bun run web",
     "dev": "turbo dev",
     "build": "turbo build",
     "typecheck": "turbo typecheck",
-    "lint": "turbo lint",
-    "lint:fix": "turbo lint:fix",
-    "format": "biome format --write .",
-    "format:check": "biome format .",
-    "ci": "bun run format:check && bun run lint && bun run typecheck && bun test && bun run --cwd apps/web db:check",
-    "build:installer": "bun run scripts/build-installer.ts",
-    "build:release-artifacts": "bun run scripts/build-release-artifacts.ts",
-    "release:local": "bun run scripts/release-local.ts",
-    "upload:release": "bun run scripts/upload-release-to-blob.ts"
+    "check": "ultracite check",
+    "fix": "ultracite fix",
+    "ci": "bun run check && bun run typecheck && bun run test:isolated && bun run --cwd apps/web db:check",
+    "test:isolated": "bun run scripts/test-isolated.ts",
+    "test:verbose": "bun test --reporter=junit --reporter-outfile /dev/stdout"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.3.11",
-    "@vercel/blob": "^0.27.0",
+    "oxfmt": "^0.41.0",
+    "oxlint": "^1.56.0",
     "turbo": "^2.5.4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "ultracite": "7.3.2"
   },
-  "optionalDependencies": {
-    "@opentui/core-darwin-arm64": "^0.1.75",
-    "@opentui/core-darwin-x64": "^0.1.75",
-    "@opentui/core-linux-arm64": "^0.1.75",
-    "@opentui/core-linux-x64": "^0.1.75",
-    "@opentui/core-win32-x64": "^0.1.75"
+  "overrides": {
+    "zod": "^4.3.6"
   },
   "packageManager": "bun@1.2.14"
 }

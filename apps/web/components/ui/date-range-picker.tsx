@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { CalendarIcon } from "lucide-react";
-import { format } from "date-fns";
+import { format, subMonths } from "date-fns";
 import type { DateRange } from "react-day-picker";
 
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { cn } from "@/lib/utils";
 
 interface DateRangePickerProps {
   value: DateRange | undefined;
@@ -24,13 +26,21 @@ export function DateRangePicker({
   onChange,
   className,
 }: DateRangePickerProps) {
+  const today = React.useMemo(() => new Date(), []);
+  const defaultMonth = value?.from ?? subMonths(today, 1);
+  const isMobile = useIsMobile();
+
   return (
     <Popover>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
           id="date-picker-range"
-          className="justify-start px-2.5 font-normal"
+          className={cn(
+            "justify-start px-2.5 font-normal",
+            !value?.from && "text-muted-foreground",
+            className,
+          )}
         >
           <CalendarIcon />
           {value?.from ? (
@@ -47,14 +57,19 @@ export function DateRangePicker({
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-auto p-0" align="end">
+      <PopoverContent
+        className="w-auto max-w-[calc(100vw-1rem)] overflow-auto p-0"
+        align={isMobile ? "center" : "end"}
+      >
         <Calendar
+          initialFocus
           mode="range"
-          defaultMonth={value?.from}
+          defaultMonth={defaultMonth}
           selected={value}
           onSelect={onChange}
-          numberOfMonths={2}
-          disabled={{ after: new Date() }}
+          numberOfMonths={isMobile ? 1 : 2}
+          disabled={{ after: today }}
+          endMonth={today}
         />
       </PopoverContent>
     </Popover>

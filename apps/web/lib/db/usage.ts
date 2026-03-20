@@ -1,10 +1,11 @@
 import { isToolUIPart, type LanguageModel, type UIMessage } from "ai";
 import { sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
+import type { UsageDateRange } from "@/lib/usage/date-range";
 import { db } from "./client";
 import { usageEvents } from "./schema";
 
-export type UsageSource = "web" | "cli";
+export type UsageSource = "web";
 export type UsageAgentType = "main" | "subagent";
 
 export async function recordUsage(
@@ -19,11 +20,13 @@ export async function recordUsage(
       cachedInputTokens: number;
       outputTokens: number;
     };
+    toolCallCount?: number;
   },
 ) {
-  const toolCallCount = data.messages
+  const inferredToolCallCount = data.messages
     .flatMap((m) => m.parts)
     .filter(isToolUIPart).length;
+  const toolCallCount = data.toolCallCount ?? inferredToolCallCount;
 
   const provider =
     typeof data.model === "string"
@@ -59,14 +62,30 @@ export interface DailyUsage {
   toolCallCount: number;
 }
 
-export async function getUsageHistory(
+export interface UsageHistoryOptions {
+  days?: number;
+  range?: UsageDateRange;
+}
+
+function buildUsageHistoryWhereClause(
   userId: string,
-  days = 280,
-): Promise<DailyUsage[]> {
+  options?: UsageHistoryOptions,
+) {
+  if (options?.range) {
+    return sql`${usageEvents.userId} = ${userId} and date(${usageEvents.createdAt}) >= ${options.range.from} and date(${usageEvents.createdAt}) <= ${options.range.to}`;
+  }
+
+  const days = options?.days ?? 280;
   const since = new Date();
   since.setDate(since.getDate() - days);
-  const sinceIso = since.toISOString();
 
+  return sql`${usageEvents.userId} = ${userId} and ${usageEvents.createdAt} >= ${since.toISOString()}`;
+}
+
+export async function getUsageHistory(
+  userId: string,
+  options?: UsageHistoryOptions,
+): Promise<DailyUsage[]> {
   const rows = await db
     .select({
       date: sql<string>`date(${usageEvents.createdAt})`,
@@ -74,16 +93,14 @@ export async function getUsageHistory(
       agentType: usageEvents.agentType,
       provider: usageEvents.provider,
       modelId: usageEvents.modelId,
-      inputTokens: sql<number>`sum(${usageEvents.inputTokens})::int`,
-      cachedInputTokens: sql<number>`sum(${usageEvents.cachedInputTokens})::int`,
-      outputTokens: sql<number>`sum(${usageEvents.outputTokens})::int`,
-      messageCount: sql<number>`sum(case when ${usageEvents.agentType} = 'main' then 1 else 0 end)::int`,
-      toolCallCount: sql<number>`sum(${usageEvents.toolCallCount})::int`,
+      inputTokens: sql<number>`coalesce(sum(${usageEvents.inputTokens}), 0)::double precision`,
+      cachedInputTokens: sql<number>`coalesce(sum(${usageEvents.cachedInputTokens}), 0)::double precision`,
+      outputTokens: sql<number>`coalesce(sum(${usageEvents.outputTokens}), 0)::double precision`,
+      messageCount: sql<number>`coalesce(sum(case when ${usageEvents.agentType} = 'main' then 1 else 0 end), 0)::double precision`,
+      toolCallCount: sql<number>`coalesce(sum(${usageEvents.toolCallCount}), 0)::double precision`,
     })
     .from(usageEvents)
-    .where(
-      sql`${usageEvents.userId} = ${userId} and ${usageEvents.createdAt} >= ${sinceIso}`,
-    )
+    .where(buildUsageHistoryWhereClause(userId, options))
     .groupBy(
       sql`date(${usageEvents.createdAt})`,
       usageEvents.source,

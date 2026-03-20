@@ -26,6 +26,9 @@ const getCalls: Array<Record<string, unknown>> = [];
 const runCommandCalls: MockRunCommandParams[] = [];
 const writeFilesCalls: Array<{ path: string; content: Buffer }[]> = [];
 let readFileToBufferResult: Buffer | null = Buffer.from("");
+let mockSessionCreatedAt = Date.now();
+let mockSessionStartedAt = Date.now();
+let mockSessionTimeout = 330_000;
 
 let runCommandMock = async (
   _params?: MockRunCommandParams,
@@ -53,7 +56,12 @@ function createMockSdk(name: string) {
   return {
     name,
     status: "running" as const,
-    currentSession: () => ({ sessionId: `sess-${name}` }),
+    currentSession: () => ({
+      sessionId: `sess-${name}`,
+      createdAt: new Date(mockSessionCreatedAt),
+      startedAt: new Date(mockSessionStartedAt),
+      timeout: mockSessionTimeout,
+    }),
     routes: Array.from(portDomains.keys()).map((port) => {
       const domain = portDomains.get(port) ?? `https://sbx-${port}.vercel.run`;
       const subdomain = new URL(domain).host.replace(".vercel.run", "");
@@ -102,6 +110,9 @@ beforeEach(() => {
   runCommandCalls.length = 0;
   writeFilesCalls.length = 0;
   readFileToBufferResult = Buffer.from("");
+  mockSessionCreatedAt = Date.now();
+  mockSessionStartedAt = mockSessionCreatedAt;
+  mockSessionTimeout = 330_000;
   portDomains.clear();
   missingPorts.clear();
   portDomains.set(80, "https://sbx-80.vercel.run");
@@ -120,6 +131,24 @@ describe("VercelSandbox.connect", () => {
     });
 
     expect(getCalls).toEqual([{ name: "sbx-test", resume: true }]);
+  });
+
+  test("infers timeout tracking from resumed session metadata", async () => {
+    mockSessionCreatedAt = Date.now() - 5_000;
+    mockSessionStartedAt = mockSessionCreatedAt;
+    mockSessionTimeout = 5 * 60 * 60 * 1000 + 30_000;
+
+    const sandbox = await sandboxModule.VercelSandbox.connect("sbx-test");
+    const expectedExpiresAt = mockSessionCreatedAt + 5 * 60 * 60 * 1000;
+    const expiresAt = sandbox.expiresAt;
+
+    expect(expiresAt).toBeDefined();
+    if (expiresAt === undefined) {
+      throw new Error("Expected reconnect to infer expiresAt");
+    }
+
+    expect(expiresAt).toBeGreaterThan(expectedExpiresAt - 1_000);
+    expect(expiresAt).toBeLessThan(expectedExpiresAt + 1_000);
   });
 });
 

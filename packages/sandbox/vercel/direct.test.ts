@@ -2,11 +2,20 @@ import { describe, expect, mock, test } from "bun:test";
 import type { Sandbox } from "../interface";
 
 let runCommandCalls = 0;
+let stopSessionCalls = 0;
+let stopSessionMock = async () => {
+  throw new Error("Status code 410 is not ok");
+};
 
 class MockApiClient {
   async runCommand() {
     runCommandCalls += 1;
     throw new Error("Status code 410 is not ok");
+  }
+
+  async stopSession() {
+    stopSessionCalls += 1;
+    return stopSessionMock();
   }
 
   async getSession() {
@@ -32,7 +41,7 @@ mock.module("@vercel/sandbox/dist/utils/get-credentials", () => ({
 
 const directModulePromise = import("./direct");
 
-function createFallbackSandbox() {
+function createFallbackSandbox(overrides?: Partial<Sandbox>) {
   const sandbox: Sandbox = {
     type: "cloud",
     workingDirectory: "/vercel/sandbox",
@@ -64,7 +73,10 @@ function createFallbackSandbox() {
     stop: async () => {},
   };
 
-  return sandbox;
+  return {
+    ...sandbox,
+    ...overrides,
+  } satisfies Sandbox;
 }
 
 describe("tryConnectVercelSandboxDirect", () => {
@@ -97,6 +109,39 @@ describe("tryConnectVercelSandboxDirect", () => {
     });
     expect(runCommandCalls).toBe(1);
     expect(reconnect).toHaveBeenCalledTimes(1);
+  });
+
+  test("falls back to the managed sandbox when direct stop hits a stale session", async () => {
+    stopSessionCalls = 0;
+    stopSessionMock = async () => {
+      throw new Error("Status code 410 is not ok");
+    };
+
+    const { tryConnectVercelSandboxDirect } = await directModulePromise;
+    const fallbackStop = mock(async () => {});
+    const reconnect = mock(async () =>
+      createFallbackSandbox({
+        stop: fallbackStop,
+      }),
+    );
+
+    const sandbox = await tryConnectVercelSandboxDirect({
+      sandboxId: "sbx-1",
+      sessionId: "sess-1",
+      reconnect,
+      expiresAt: Date.now() + 60_000,
+    });
+
+    expect(sandbox).not.toBeNull();
+    if (!sandbox) {
+      throw new Error("Expected a direct sandbox instance");
+    }
+
+    await sandbox.stop();
+
+    expect(stopSessionCalls).toBe(1);
+    expect(reconnect).toHaveBeenCalledTimes(1);
+    expect(fallbackStop).toHaveBeenCalledTimes(1);
   });
 
   test("returns null when sessionId is unavailable", async () => {

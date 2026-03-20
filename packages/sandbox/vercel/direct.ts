@@ -315,12 +315,12 @@ class VercelDirectSandbox implements Sandbox {
   }
 
   async stop(): Promise<void> {
-    if (this.fallbackSandbox) {
-      await this.fallbackSandbox.stop();
-      return;
-    }
-
-    await this.client.stopSession({ sessionId: this.sessionId });
+    await this.runWithReconnect({
+      runDirect: async () => {
+        await this.client.stopSession({ sessionId: this.sessionId });
+      },
+      runFallback: (sandbox) => sandbox.stop(),
+    });
   }
 
   async extendTimeout(additionalMs: number): Promise<{ expiresAt: number }> {

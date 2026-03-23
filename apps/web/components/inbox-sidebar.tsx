@@ -226,8 +226,8 @@ const SessionRow = memo(function SessionRow({
     <div
       className={`group relative flex w-full items-start gap-2.5 rounded-xl border px-3 py-2.5 text-left transition-[background-color,border-color,box-shadow,opacity] ${
         isActive
-          ? "border-border/70 bg-sidebar-active shadow-sm"
-          : "border-transparent hover:border-border/40 hover:bg-muted/50"
+          ? "border-sidebar-border/70 bg-sidebar-active shadow-sm"
+          : "border-transparent hover:border-sidebar-border/40 hover:bg-sidebar-accent/50"
       } ${isPending ? "opacity-80" : "opacity-100"}`}
       style={sessionRowPerformanceStyle}
     >
@@ -252,20 +252,20 @@ const SessionRow = memo(function SessionRow({
             <p
               className={`min-w-0 flex-1 truncate text-sm ${
                 isUnread || isWorking
-                  ? "font-semibold text-foreground"
-                  : "font-medium text-foreground"
+                  ? "font-semibold text-sidebar-foreground"
+                  : "font-medium text-sidebar-foreground"
               }`}
             >
               {session.title}
             </p>
-            <span className="flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground">
+            <span className="flex shrink-0 items-center gap-1 text-[11px] text-sidebar-foreground/60">
               {isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
               <span>{lastActivityLabel}</span>
             </span>
           </div>
 
           {showMetadata ? (
-            <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+            <div className="mt-0.5 flex items-center gap-1.5 text-xs text-sidebar-foreground/60">
               {metadataLabel ? (
                 <span className={metadataLabelClassName}>{metadataLabel}</span>
               ) : null}
@@ -289,7 +289,7 @@ const SessionRow = memo(function SessionRow({
           <button
             type="button"
             onClick={(e) => e.stopPropagation()}
-            className="absolute right-2 top-2.5 rounded p-1 text-muted-foreground hover:bg-background/60 hover:text-foreground"
+            className="absolute right-2 top-2.5 rounded p-1 text-sidebar-foreground/60 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground"
             aria-label={`Open menu for ${session.title}`}
           >
             <EllipsisVertical className="h-3 w-3" />
@@ -584,9 +584,9 @@ export function InboxSidebar({
 
   return (
     <>
-      <div className="border-b border-border p-3">
+      <div className="border-b border-sidebar-border p-3">
         <div className="mb-3 flex items-center justify-between">
-          <div className="flex items-center px-2 py-1.5 text-sm text-primary">
+          <div className="flex items-center px-2 py-1.5 text-sm text-sidebar-foreground">
             <span>Sessions</span>
           </div>
           <Button
@@ -606,13 +606,13 @@ export function InboxSidebar({
             onClick={() => setShowArchived(false)}
             className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
               !showArchived
-                ? "bg-muted text-foreground"
-                : "text-muted-foreground hover:text-foreground"
+                ? "bg-sidebar-accent text-sidebar-foreground"
+                : "text-sidebar-foreground/60 hover:text-sidebar-foreground"
             }`}
           >
             Active
             {activeSessions.length > 0 && (
-              <span className="ml-1.5 text-muted-foreground">
+              <span className="ml-1.5 text-sidebar-foreground/60">
                 {activeSessions.length}
               </span>
             )}
@@ -622,14 +622,14 @@ export function InboxSidebar({
             onClick={() => setShowArchived(true)}
             className={`flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
               showArchived
-                ? "bg-muted text-foreground"
-                : "text-muted-foreground hover:text-foreground"
+                ? "bg-sidebar-accent text-sidebar-foreground"
+                : "text-sidebar-foreground/60 hover:text-sidebar-foreground"
             }`}
           >
             <Archive className="h-3 w-3" />
             Archive
             {archivedCount > 0 && (
-              <span className="ml-1 text-muted-foreground">
+              <span className="ml-1 text-sidebar-foreground/60">
                 {archivedCount}
               </span>
             )}
@@ -642,13 +642,13 @@ export function InboxSidebar({
           <div className="space-y-1 p-2">
             {Array.from({ length: 5 }).map((_, index) => (
               <div key={index} className="space-y-1.5 rounded-md px-3 py-2.5">
-                <div className="h-3.5 w-3/4 animate-pulse rounded bg-muted" />
-                <div className="h-3 w-1/2 animate-pulse rounded bg-muted" />
+                <div className="h-3.5 w-3/4 animate-pulse rounded bg-sidebar-accent" />
+                <div className="h-3 w-1/2 animate-pulse rounded bg-sidebar-accent" />
               </div>
             ))}
           </div>
         ) : displayedSessions.length === 0 ? (
-          <div className="px-4 py-12 text-center text-sm text-muted-foreground">
+          <div className="px-4 py-12 text-center text-sm text-sidebar-foreground/60">
             {showArchived
               ? (archivedSessionsError ?? "No archived sessions")
               : "No sessions yet"}
@@ -689,14 +689,14 @@ export function InboxSidebar({
                       aria-expanded={!isCollapsed}
                       className={`flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors ${
                         groupHasActiveSession
-                          ? "bg-muted/35 text-foreground"
-                          : "text-muted-foreground hover:bg-muted/20 hover:text-foreground/85"
+                          ? "bg-sidebar-accent/35 text-sidebar-foreground"
+                          : "text-sidebar-foreground/70 hover:bg-sidebar-accent/20 hover:text-sidebar-foreground/85"
                       }`}
                     >
-                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-border/40 bg-background/70 text-muted-foreground/80">
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-sidebar-border/40 bg-sidebar-accent/30 text-sidebar-foreground/70">
                         <FolderGit2 className="h-3.5 w-3.5" />
                       </span>
-                      <span className="min-w-0 flex-1 truncate text-[12px] font-medium">
+                      <span className="min-w-0 flex-1 truncate text-[12px] font-medium text-sidebar-foreground">
                         {group.label}
                       </span>
                       {groupHasStreaming ? (
@@ -707,14 +707,14 @@ export function InboxSidebar({
                       <span
                         className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${
                           groupHasActiveSession
-                            ? "bg-background/80 text-foreground/65"
-                            : "bg-muted/70 text-muted-foreground"
+                            ? "bg-sidebar-accent/60 text-sidebar-foreground/65"
+                            : "bg-sidebar-accent/40 text-sidebar-foreground/60"
                         }`}
                       >
                         {group.sessions.length}
                       </span>
                       <ChevronDown
-                        className={`h-3.5 w-3.5 shrink-0 text-muted-foreground/70 transition-transform duration-200 ${
+                        className={`h-3.5 w-3.5 shrink-0 text-sidebar-foreground/50 transition-transform duration-200 ${
                           isCollapsed ? "-rotate-90" : "rotate-0"
                         }`}
                       />
@@ -730,7 +730,7 @@ export function InboxSidebar({
                       }`}
                     >
                       <div className="overflow-hidden">
-                        <div className="ml-5 space-y-1 border-l border-border/40 pl-2">
+                        <div className="ml-5 space-y-1 border-l border-sidebar-border/40 pl-2">
                           {group.sessions.map((session) => (
                             <SessionRow
                               key={session.id}
@@ -778,7 +778,7 @@ export function InboxSidebar({
       </div>
 
       {sidebarUser ? (
-        <div className="border-t border-border p-3">
+        <div className="border-t border-sidebar-border p-3">
           <div className="flex items-center gap-2 rounded-lg p-2">
             <Avatar className="h-9 w-9 shrink-0">
               {sidebarUser.avatar ? (
@@ -792,11 +792,11 @@ export function InboxSidebar({
               </AvatarFallback>
             </Avatar>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold leading-none text-foreground">
+              <p className="truncate text-sm font-semibold leading-none text-sidebar-foreground">
                 {sidebarUser.username}
               </p>
               {sidebarUser.email ? (
-                <p className="mt-1 truncate text-xs text-muted-foreground">
+                <p className="mt-1 truncate text-xs text-sidebar-foreground/60">
                   {sidebarUser.email}
                 </p>
               ) : null}
@@ -805,7 +805,7 @@ export function InboxSidebar({
               type="button"
               variant="ghost"
               size="icon"
-              className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground"
+              className="h-8 w-8 shrink-0 text-sidebar-foreground/60 hover:text-sidebar-foreground"
               onClick={() => router.push("/settings")}
               aria-label="Open settings"
             >

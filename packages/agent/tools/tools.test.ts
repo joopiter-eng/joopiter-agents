@@ -74,6 +74,7 @@ const { skillTool } = await import("./skill");
 const { taskTool } = await import("./task");
 const { todoWriteTool } = await import("./todo");
 const { editFileTool, writeFileTool } = await import("./write");
+const { buildSystemPrompt } = await import("../system-prompt");
 
 function createContext(sandbox: Record<string, unknown>) {
   const sandboxId = `sandbox-${sandboxRegistry.size + 1}`;
@@ -586,6 +587,28 @@ describe("tools execute behavior", () => {
       },
     );
     expect(executorNeedsApproval).toBe(false);
+  });
+
+  test("taskTool description lists subagents from the shared registry", () => {
+    expect(taskTool.description).toContain(
+      "`explorer` - Use for read-only codebase exploration, tracing behavior, and answering questions without changing files",
+    );
+    expect(taskTool.description).toContain(
+      "`executor` - Use for well-scoped implementation work, including edits, scaffolding, refactors, and other file changes",
+    );
+    expect(taskTool.description).toContain("up to 100 tool steps");
+  });
+
+  test("buildSystemPrompt lists subagents from the shared registry", () => {
+    const prompt = buildSystemPrompt({});
+
+    expect(prompt).toContain("Available subagents:");
+    expect(prompt).toContain(
+      "`explorer` - Use for read-only codebase exploration, tracing behavior, and answering questions without changing files",
+    );
+    expect(prompt).toContain(
+      "`executor` - Use for well-scoped implementation work, including edits, scaffolding, refactors, and other file changes",
+    );
   });
 
   test("todoWriteTool returns updated todo list metadata", async () => {

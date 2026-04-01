@@ -14,6 +14,21 @@ import {
   shares,
 } from "./schema";
 
+const PERSISTENT_SANDBOX_NAME_PREFIX = "session_";
+
+export function buildSessionSandboxName(sessionId: string): string {
+  return `${PERSISTENT_SANDBOX_NAME_PREFIX}${sessionId}`;
+}
+
+export function isPersistentSessionSandboxName(
+  sandboxId: string | null | undefined,
+): sandboxId is string {
+  return (
+    typeof sandboxId === "string" &&
+    sandboxId.startsWith(PERSISTENT_SANDBOX_NAME_PREFIX)
+  );
+}
+
 export function normalizeLegacySandboxState(
   sandboxState: unknown,
 ): SandboxState | null | undefined {

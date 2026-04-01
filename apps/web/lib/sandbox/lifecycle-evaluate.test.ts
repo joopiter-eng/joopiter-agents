@@ -16,6 +16,7 @@ interface TestSessionRecord {
   sandboxState: {
     type: "vercel";
     sandboxId: string;
+    expiresAt: number;
   };
   hibernateAfter: Date | null;
   lastActivityAt: Date | null;
@@ -50,6 +51,7 @@ const spies = {
 };
 
 mock.module("@/lib/db/sessions", () => ({
+  buildSessionSandboxName: (sessionId: string) => `session_${sessionId}`,
   getChatsBySessionId: spies.getChatsBySessionId,
   getSessionById: spies.getSessionById,
   updateSession: spies.updateSession,
@@ -71,6 +73,7 @@ function makeDueSession(): TestSessionRecord {
     sandboxState: {
       type: "vercel",
       sandboxId: "sandbox-1",
+      expiresAt: nowMs + 5 * 60_000,
     },
     hibernateAfter: new Date(nowMs - 1_000),
     lastActivityAt: new Date(nowMs - 60_000),
@@ -131,7 +134,7 @@ describe("evaluateSandboxLifecycle", () => {
     expect(finalPatch).toEqual({
       lifecycleState: "active",
       lifecycleError: null,
-      sandboxExpiresAt: null,
+      sandboxExpiresAt: expect.any(Date),
     });
     expect(finalPatch).not.toHaveProperty("lastActivityAt");
     expect(finalPatch).not.toHaveProperty("hibernateAfter");
@@ -163,7 +166,7 @@ describe("evaluateSandboxLifecycle", () => {
     expect(finalPatch).toEqual({
       lifecycleState: "active",
       lifecycleError: null,
-      sandboxExpiresAt: null,
+      sandboxExpiresAt: expect.any(Date),
     });
     expect(finalPatch).not.toHaveProperty("lastActivityAt");
     expect(finalPatch).not.toHaveProperty("hibernateAfter");

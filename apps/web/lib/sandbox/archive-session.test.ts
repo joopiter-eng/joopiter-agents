@@ -15,6 +15,7 @@ interface TestSessionRecord {
   sandboxState: {
     type: "vercel";
     sandboxId?: string;
+    expiresAt?: number;
   } | null;
   snapshotUrl: string | null;
   lifecycleState: "active" | "archived" | null;
@@ -122,6 +123,7 @@ const spies = {
 };
 
 mock.module("@/lib/db/sessions", () => ({
+  buildSessionSandboxName: (sessionId: string) => `session_${sessionId}`,
   getSessionById: spies.getSessionById,
   updateSession: spies.updateSession,
 }));
@@ -157,6 +159,7 @@ function makeSessionRecord(
     sandboxState: {
       type: "vercel",
       sandboxId: "sandbox-1",
+      expiresAt: Date.now() + 5 * 60_000,
     },
     snapshotUrl: null,
     lifecycleState: "active",
@@ -266,6 +269,7 @@ describe("archiveSession", () => {
     expect(sessionRecord?.sandboxState).toEqual({
       type: "vercel",
       sandboxId: "sandbox-1",
+      expiresAt: expect.any(Number),
     });
   });
 

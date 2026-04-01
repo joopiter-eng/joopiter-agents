@@ -1,13 +1,21 @@
 import "server-only";
 
 import { connectSandbox } from "@open-harness/sandbox";
-import { getSessionById, updateSession } from "@/lib/db/sessions";
+import {
+  buildSessionSandboxName,
+  getSessionById,
+  updateSession,
+} from "@/lib/db/sessions";
 import {
   findPullRequestByBranch,
   getPullRequestStatus,
 } from "@/lib/github/client";
 import { getRepoToken } from "@/lib/github/get-repo-token";
-import { canOperateOnSandbox, clearSandboxState } from "./utils";
+import {
+  canOperateOnSandbox,
+  clearSandboxState,
+  hasPersistentSandboxState,
+} from "./utils";
 
 type SessionRecord = NonNullable<Awaited<ReturnType<typeof getSessionById>>>;
 type SessionUpdateInput = Parameters<typeof updateSession>[1];
@@ -160,21 +168,28 @@ async function finalizeArchivedSessionSandbox(
       return;
     }
 
-    const sandbox = await connectSandbox(archivedSession.sandboxState);
+    const sandboxState = archivedSession.sandboxState;
+    const sandbox = await connectSandbox(sandboxState);
 
-    // Snapshot before stopping so the sandbox can be restored on unarchive.
-    // snapshot() automatically stops the sandbox, so no separate stop() needed.
-    let snapshotFields: {
-      snapshotUrl?: string;
-      snapshotCreatedAt?: Date;
-    } = {};
+    let sandboxPatch: SessionUpdateInput;
 
-    if (sandbox.snapshot) {
+    if (hasPersistentSandboxState(sandboxState)) {
+      await sandbox.stop();
+      sandboxPatch = {
+        snapshotUrl: null,
+        snapshotCreatedAt: null,
+        sandboxState: clearSandboxState(sandboxState),
+      };
+    } else if (sandbox.snapshot) {
       try {
         const result = await sandbox.snapshot();
-        snapshotFields = {
+        sandboxPatch = {
           snapshotUrl: result.snapshotId,
           snapshotCreatedAt: new Date(),
+          sandboxState: {
+            type: sandboxState.type,
+            sandboxId: buildSessionSandboxName(sessionId),
+          },
         };
       } catch (snapshotError) {
         console.error(
@@ -182,14 +197,19 @@ async function finalizeArchivedSessionSandbox(
           snapshotError,
         );
         await sandbox.stop();
+        sandboxPatch = {
+          sandboxState: clearSandboxState(sandboxState),
+        };
       }
     } else {
       await sandbox.stop();
+      sandboxPatch = {
+        sandboxState: clearSandboxState(sandboxState),
+      };
     }
 
     await updateSession(sessionId, {
-      ...snapshotFields,
-      sandboxState: clearSandboxState(archivedSession.sandboxState),
+      ...sandboxPatch,
       lifecycleState: "archived",
       sandboxExpiresAt: null,
       hibernateAfter: null,

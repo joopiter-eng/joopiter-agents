@@ -33,6 +33,7 @@ interface ConnectConfig {
     gitUser?: {
       email?: string;
     };
+    sandboxName?: string;
   };
 }
 
@@ -95,6 +96,7 @@ mock.module("@/lib/vercel/projects", () => ({
 }));
 
 mock.module("@/lib/db/sessions", () => ({
+  buildSessionSandboxName: (sessionId: string) => `session_${sessionId}`,
   getChatsBySessionId: async () => [],
   getSessionById: async () => sessionRecord,
   updateSession: async (sessionId: string, patch: Record<string, unknown>) => {
@@ -245,6 +247,7 @@ describe("/api/sandbox lifecycle kicks", () => {
     expect(connectConfigs[0]?.options?.gitUser?.email).toBe(
       "12345+nico-gh@users.noreply.github.com",
     );
+    expect(connectConfigs[0]?.options?.sandboxName).toBe("session_session-1");
     expect(dotenvSyncCalls).toEqual([
       {
         token: "vercel-token",

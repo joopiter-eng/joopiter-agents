@@ -2,6 +2,11 @@ import type { SandboxHooks } from "../interface";
 
 export interface VercelSandboxConfig {
   /**
+   * Stable name for persistent sandboxes.
+   * When omitted, the wrapper keeps the old ephemeral behavior.
+   */
+  name?: string;
+  /**
    * Optional GitHub repository source to clone into the sandbox.
    * If not provided, the sandbox starts empty.
    */
@@ -69,12 +74,17 @@ export interface VercelSandboxConfig {
  * Configuration for reconnecting to an existing sandbox.
  */
 export interface VercelSandboxConnectConfig {
-  /** The sandbox ID to reconnect to */
+  /** The persistent sandbox name to reconnect to */
   sandboxId: string;
   /** Environment variables to make available to commands */
   env?: Record<string, string>;
   /** Lifecycle hooks for setup and teardown */
   hooks?: SandboxHooks;
+  /**
+   * Resume the sandbox if the current session is stopped.
+   * Defaults to true to preserve the old reconnect semantics.
+   */
+  resume?: boolean;
   /**
    * Remaining timeout in milliseconds for this sandbox.
    * If not provided, defaults to 5 minutes (DEFAULT_RECONNECT_TIMEOUT_MS).

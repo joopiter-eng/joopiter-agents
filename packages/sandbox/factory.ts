@@ -28,6 +28,12 @@ export interface ConnectOptions {
   ports?: number[];
   /** Snapshot ID used as the base image for new sandboxes */
   baseSnapshotId?: string;
+  /** Stable sandbox name to assign when creating a persistent sandbox */
+  sandboxName?: string;
+  /** Resume a stopped persistent sandbox before returning it */
+  resume?: boolean;
+  /** Restore a new sandbox session from the provided legacy snapshot state */
+  restoreSnapshot?: boolean;
 }
 
 /**

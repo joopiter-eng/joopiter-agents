@@ -5,7 +5,7 @@ import {
   type SessionRecord,
 } from "@/app/api/sessions/_lib/session-context";
 import { getGitHubAccount } from "@/lib/db/accounts";
-import { updateSession } from "@/lib/db/sessions";
+import { buildSessionSandboxName, updateSession } from "@/lib/db/sessions";
 import { parseGitHubUrl } from "@/lib/github/client";
 import { getRepoToken } from "@/lib/github/get-repo-token";
 import { getUserGitHubToken } from "@/lib/github/user-token";
@@ -23,7 +23,11 @@ import {
   getVercelCliSandboxSetup,
   syncVercelCliAuthToSandbox,
 } from "@/lib/sandbox/vercel-cli-auth";
-import { canOperateOnSandbox, clearSandboxState } from "@/lib/sandbox/utils";
+import {
+  canOperateOnSandbox,
+  clearSandboxState,
+  hasSandboxIdentity,
+} from "@/lib/sandbox/utils";
 import { getServerSession } from "@/lib/session/get-server-session";
 import { buildDevelopmentDotenvFromVercelProject } from "@/lib/vercel/projects";
 import { getUserVercelToken } from "@/lib/vercel/token";
@@ -240,6 +244,7 @@ export async function POST(req: Request) {
       timeout: DEFAULT_SANDBOX_TIMEOUT_MS,
       ports: DEFAULT_SANDBOX_PORTS,
       baseSnapshotId: DEFAULT_SANDBOX_BASE_SNAPSHOT_ID,
+      sandboxName: sessionId ? buildSessionSandboxName(sessionId) : undefined,
     },
   });
 
@@ -341,9 +346,14 @@ export async function DELETE(req: Request) {
   const sandbox = await connectSandbox(sessionRecord.sandboxState);
   await sandbox.stop();
 
+  const clearedSandboxState = clearSandboxState(sessionRecord.sandboxState);
+
   await updateSession(sessionId, {
-    sandboxState: clearSandboxState(sessionRecord.sandboxState),
-    lifecycleState: sessionRecord.snapshotUrl ? "hibernated" : "provisioning",
+    sandboxState: clearedSandboxState,
+    lifecycleState:
+      sessionRecord.snapshotUrl || hasSandboxIdentity(clearedSandboxState)
+        ? "hibernated"
+        : "provisioning",
     sandboxExpiresAt: null,
     hibernateAfter: null,
     lifecycleRunId: null,

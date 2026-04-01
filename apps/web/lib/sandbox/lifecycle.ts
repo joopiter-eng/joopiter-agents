@@ -6,6 +6,7 @@ import {
   type SnapshotResult,
 } from "@open-harness/sandbox";
 import {
+  buildSessionSandboxName,
   getChatsBySessionId,
   getSessionById,
   updateSession,
@@ -14,7 +15,11 @@ import {
   SANDBOX_EXPIRES_BUFFER_MS,
   SANDBOX_INACTIVITY_TIMEOUT_MS,
 } from "./config";
-import { canOperateOnSandbox, clearSandboxState } from "./utils";
+import {
+  canOperateOnSandbox,
+  clearSandboxState,
+  hasPersistentSandboxState,
+} from "./utils";
 
 export type SandboxLifecycleState =
   | "provisioning"
@@ -219,16 +224,31 @@ export async function evaluateSandboxLifecycle(
     });
 
     const sandbox = await connectSandbox(sandboxState);
+
+    if (await hasActiveStreamForSession(sessionId)) {
+      await restoreActiveLifecycleState(sessionId, sandboxState);
+      return { action: "skipped", reason: "active-workflow" };
+    }
+
+    if (hasPersistentSandboxState(sandboxState)) {
+      await sandbox.stop();
+      await updateSession(sessionId, {
+        snapshotUrl: null,
+        snapshotCreatedAt: null,
+        sandboxState: clearSandboxState(sandboxState),
+        ...buildHibernatedLifecycleUpdate(),
+      });
+      console.log(
+        `[Lifecycle] Hibernated persistent sandbox for session ${sessionId} (reason=${reason}, sandboxId=${sandboxState.sandboxId}).`,
+      );
+      return { action: "hibernated" };
+    }
+
     if (!sandbox.snapshot) {
       await updateSession(sessionId, {
         ...buildActiveLifecycleUpdate(sandboxState),
       });
       return { action: "skipped", reason: "snapshot-not-supported" };
-    }
-
-    if (await hasActiveStreamForSession(sessionId)) {
-      await restoreActiveLifecycleState(sessionId, sandboxState);
-      return { action: "skipped", reason: "active-workflow" };
     }
 
     let snapshot: SnapshotResult;
@@ -265,15 +285,19 @@ export async function evaluateSandboxLifecycle(
     }
 
     const snapshotCreatedAt = new Date();
+    const migratedState = {
+      type: sandboxState.type,
+      sandboxId: buildSessionSandboxName(sessionId),
+    } satisfies SandboxState;
 
     await updateSession(sessionId, {
       snapshotUrl: snapshot.snapshotId,
       snapshotCreatedAt,
-      sandboxState: clearSandboxState(sandboxState),
+      sandboxState: migratedState,
       ...buildHibernatedLifecycleUpdate(),
     });
     console.log(
-      `[Lifecycle] Hibernated sandbox for session ${sessionId} (reason=${reason}, snapshotId=${snapshot.snapshotId}).`,
+      `[Lifecycle] Hibernated legacy sandbox for session ${sessionId} (reason=${reason}, snapshotId=${snapshot.snapshotId}, sandboxId=${migratedState.sandboxId}).`,
     );
     return { action: "hibernated" };
   } catch (error) {

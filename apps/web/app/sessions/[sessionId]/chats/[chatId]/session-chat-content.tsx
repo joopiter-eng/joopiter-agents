@@ -114,6 +114,7 @@ import {
 import { ACCEPT_IMAGE_TYPES, isValidImageType } from "@/lib/image-utils";
 import { DEFAULT_CONTEXT_LIMIT } from "@/lib/models";
 import { getPrDeploymentRefreshInterval } from "@/lib/pr-deployment-polling";
+import { canResumeSandbox } from "@/lib/sandbox/utils";
 import { fetcher } from "@/lib/swr";
 import { streamdownPlugins } from "@/lib/streamdown-config";
 import { cn } from "@/lib/utils";
@@ -451,7 +452,7 @@ function SandboxInputOverlay({
   isArchived,
   isInitializing,
   snapshotPending,
-  hasSnapshot,
+  canResume,
   onRestore,
   onCreateNew,
 }: {
@@ -463,7 +464,7 @@ function SandboxInputOverlay({
   isArchived: boolean;
   isInitializing: boolean;
   snapshotPending: boolean;
-  hasSnapshot: boolean;
+  canResume: boolean;
   onRestore: () => void;
   onCreateNew: () => void;
 }) {
@@ -499,7 +500,7 @@ function SandboxInputOverlay({
   return (
     <div className="absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-background/60 backdrop-blur-[2px]">
       <div className="flex items-center gap-2">
-        {hasSnapshot ? (
+        {canResume ? (
           <Button onClick={onRestore} size="sm" className="shadow-sm">
             Resume sandbox
           </Button>
@@ -1021,6 +1022,10 @@ export function SessionChatContent({
     hadInitialMessages,
     initialMessages,
   } = useSessionChatRuntimeContext();
+  const canResumeSavedSandbox = canResumeSandbox(
+    session.sandboxState,
+    hasSnapshot ? (session.snapshotUrl ?? "snapshot") : null,
+  );
   const {
     sandboxInfo,
     diff,
@@ -1971,7 +1976,7 @@ export function SessionChatContent({
   // Skip for archived sessions.
   useEffect(() => {
     if (isArchived) return;
-    if (!hasSnapshot) {
+    if (!canResumeSavedSandbox) {
       hasAutoRestoredSnapshotRef.current = false;
       return;
     }
@@ -1987,7 +1992,7 @@ export function SessionChatContent({
   }, [
     isArchived,
     session.id,
-    hasSnapshot,
+    canResumeSavedSandbox,
     sandboxInfo,
     isCreatingSandbox,
     isRestoringSnapshot,
@@ -2084,8 +2089,8 @@ export function SessionChatContent({
       return;
     }
 
-    // Snapshotted sessions are resumed by the auto-restore-on-entry effect.
-    if (hasSnapshot) {
+    // Paused sessions are resumed by the auto-restore-on-entry effect.
+    if (canResumeSavedSandbox) {
       return;
     }
 
@@ -2096,7 +2101,7 @@ export function SessionChatContent({
   }, [
     isArchived,
     session.sandboxState,
-    hasSnapshot,
+    canResumeSavedSandbox,
     reconnectionStatus,
     sandboxInfo,
     isCreatingSandbox,
@@ -2248,9 +2253,9 @@ export function SessionChatContent({
     !isCreatingSandbox &&
     !isRestoringSnapshot;
   const isHibernatingTransition =
-    isReconnectingSandbox && hasSnapshot && !hasRuntimeSandboxState;
+    isReconnectingSandbox && canResumeSavedSandbox && !hasRuntimeSandboxState;
   const isArchiveSnapshotPending =
-    isArchived && !hasSnapshot && hasRuntimeSandboxState;
+    isArchived && !canResumeSavedSandbox && hasRuntimeSandboxState;
   const isServerHibernating = lifecycleTiming.state === "hibernating";
   const isServerRestoring = lifecycleTiming.state === "restoring";
   const isServerHibernated = lifecycleTiming.state === "hibernated";
@@ -2290,7 +2295,7 @@ export function SessionChatContent({
       };
     }
     // Server says hibernated — show Paused regardless of local sandboxInfo
-    if (isServerHibernated && hasSnapshot) {
+    if (isServerHibernated && canResumeSavedSandbox) {
       return { label: "Paused", className: "bg-muted text-muted-foreground" };
     }
     if (isSandboxActive) {
@@ -2299,7 +2304,7 @@ export function SessionChatContent({
         className: "bg-emerald-500/15 text-emerald-700",
       };
     }
-    if (hasSnapshot) {
+    if (canResumeSavedSandbox) {
       return { label: "Paused", className: "bg-muted text-muted-foreground" };
     }
     if (reconnectionStatus === "failed") {
@@ -2317,7 +2322,7 @@ export function SessionChatContent({
     isHibernatingUi,
     isReconnectingSandbox,
     isServerHibernated,
-    hasSnapshot,
+    canResumeSavedSandbox,
     isSandboxActive,
     reconnectionStatus,
   ]);
@@ -3454,7 +3459,7 @@ export function SessionChatContent({
                 isArchived={isArchived}
                 isInitializing={reconnectionStatus === "idle"}
                 snapshotPending={isArchiveSnapshotPending}
-                hasSnapshot={hasSnapshot}
+                canResume={canResumeSavedSandbox}
                 onRestore={handleRestoreSnapshot}
                 onCreateNew={handleCreateNewSandbox}
               />

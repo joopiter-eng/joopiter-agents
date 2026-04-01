@@ -1,4 +1,7 @@
-import { Sandbox as VercelSandboxSDK } from "@vercel/sandbox";
+import {
+  Sandbox as VercelSandboxSDK,
+  type Session as VercelSessionSDK,
+} from "@vercel/sandbox";
 import type { Dirent } from "fs";
 import type {
   ExecResult,
@@ -39,6 +42,19 @@ function buildAuthenticatedGitHubUrl(
   return `https://x-access-token:${token}@github.com/${owner}/${repo}.git`;
 }
 
+function isStoppedSessionStatus(status: string): boolean {
+  return (
+    status === "stopped" ||
+    status === "stopping" ||
+    status === "failed" ||
+    status === "aborted"
+  );
+}
+
+function getWorkingDirectory(sdk: VercelSandboxSDK): string {
+  return sdk.currentSession().cwd || DEFAULT_WORKING_DIRECTORY;
+}
+
 /**
  * Vercel Sandbox implementation using the @vercel/sandbox SDK.
  * Runs code in isolated Firecracker MicroVMs.
@@ -46,8 +62,8 @@ function buildAuthenticatedGitHubUrl(
 export class VercelSandbox implements Sandbox {
   readonly type = "cloud" as const;
   /**
-   * Unique identifier for this sandbox.
-   * Use this to reconnect to an existing sandbox via `connectVercelSandbox({ sandboxId })`.
+   * Stable identifier for this sandbox.
+   * For persistent Vercel sandboxes this is the sandbox name.
    */
   readonly id: string;
   readonly workingDirectory: string;
@@ -65,6 +81,7 @@ export class VercelSandbox implements Sandbox {
   private _expiresAt?: number;
   private _timeout?: number;
   private _ports?: number[];
+  private readonly resumeOnAccess: boolean;
 
   /**
    * Timestamp (ms since epoch) when this sandbox will be proactively stopped.
@@ -93,6 +110,10 @@ export class VercelSandbox implements Sandbox {
     timeout?: number,
     startTime?: number,
     ports?: number[],
+    options?: {
+      resumeOnAccess?: boolean;
+      isStopped?: boolean;
+    },
   ) {
     this.sdk = sdk;
     this.id = id;
@@ -101,13 +122,39 @@ export class VercelSandbox implements Sandbox {
     this.currentBranch = currentBranch;
     this.hooks = hooks;
     this._ports = ports;
+    this.resumeOnAccess = options?.resumeOnAccess ?? true;
+    this.isStopped = options?.isStopped ?? false;
 
-    // Set timeout tracking for proactive stop
-    if (timeout !== undefined && startTime !== undefined) {
+    if (!this.isStopped && timeout !== undefined && startTime !== undefined) {
       this._timeout = timeout;
       this._expiresAt = startTime + timeout;
       this.scheduleProactiveStop();
     }
+  }
+
+  private getCurrentSession(): VercelSessionSDK {
+    return this.sdk.currentSession();
+  }
+
+  private getOperationTarget(): VercelSandboxSDK | VercelSessionSDK {
+    return this.resumeOnAccess ? this.sdk : this.getCurrentSession();
+  }
+
+  private ensureSessionAvailable(): void {
+    if (isStoppedSessionStatus(this.getCurrentSession().status)) {
+      this.isStopped = true;
+      this._expiresAt = undefined;
+      throw new Error("Sandbox is stopped");
+    }
+  }
+
+  private async runCommandOnTarget(
+    params: Parameters<VercelSandboxSDK["runCommand"]>[0],
+  ) {
+    if (!this.resumeOnAccess) {
+      this.ensureSessionAvailable();
+    }
+    return this.getOperationTarget().runCommand(params as never);
   }
 
   /**
@@ -336,6 +383,7 @@ ${hostLine}${portLines}${runtimeEnvLine}`;
     config: VercelSandboxConfig = {},
   ): Promise<VercelSandbox> {
     const {
+      name,
       source,
       gitUser,
       env,
@@ -347,7 +395,6 @@ ${hostLine}${portLines}${runtimeEnvLine}`;
       hooks,
     } = config;
 
-    // Clamp proactive timeout to stay under the SDK's hard max when buffer is applied.
     const effectiveTimeout = Math.min(timeout, MAX_PROACTIVE_TIMEOUT_MS);
     if (effectiveTimeout !== timeout) {
       console.warn(
@@ -355,7 +402,6 @@ ${hostLine}${portLines}${runtimeEnvLine}`;
       );
     }
 
-    // Calculate SDK timeout with buffer for beforeStop hook.
     const sdkTimeout = effectiveTimeout + TIMEOUT_BUFFER_MS;
 
     const createBaseConfig = {
@@ -363,6 +409,7 @@ ${hostLine}${portLines}${runtimeEnvLine}`;
       timeout: sdkTimeout,
       runtime,
       ...(ports && { ports }),
+      ...(name ? { name, persistent: true } : { persistent: false }),
     };
 
     let sdk: VercelSandboxSDK;
@@ -392,12 +439,8 @@ ${hostLine}${portLines}${runtimeEnvLine}`;
       sdk = await VercelSandboxSDK.create(createBaseConfig);
     }
 
-    const workingDirectory = DEFAULT_WORKING_DIRECTORY;
+    const workingDirectory = getWorkingDirectory(sdk);
 
-    // TODO: `git clone ... .` requires the directory to be empty. If the base
-    // snapshot has files in /vercel/sandbox (dotfiles, tool configs, etc.), the
-    // clone will fail. Consider using git init + remote add + fetch + checkout
-    // instead, which works regardless of existing directory contents.
     if (source && baseSnapshotId) {
       const cloneUrl = source.token
         ? (buildAuthenticatedGitHubUrl(source.url, source.token) ?? source.url)
@@ -421,8 +464,6 @@ ${hostLine}${portLines}${runtimeEnvLine}`;
       }
     }
 
-    // Initialize git repo for empty sandboxes (no source provided)
-    // This ensures git commands work consistently (e.g., for diff viewing)
     if (!source) {
       await sdk.runCommand({
         cmd: "git",
@@ -431,10 +472,6 @@ ${hostLine}${portLines}${runtimeEnvLine}`;
       });
     }
 
-    // Configure git to use the token for push operations if provided
-    // We modify the remote URL to embed credentials directly (standard CI/CD approach)
-    // TODO: When baseSnapshotId is set, the token is already embedded in the
-    // clone URL above, making this set-url call redundant for that path.
     if (source?.token) {
       const authenticatedUrl = buildAuthenticatedGitHubUrl(
         source.url,
@@ -449,7 +486,6 @@ ${hostLine}${portLines}${runtimeEnvLine}`;
       }
     }
 
-    // Configure git user for commits if provided
     if (gitUser) {
       await sdk.runCommand({
         cmd: "git",
@@ -463,9 +499,6 @@ ${hostLine}${portLines}${runtimeEnvLine}`;
       });
     }
 
-    // Create initial empty commit for empty sandboxes so HEAD exists
-    // This is required for git diff HEAD to work (e.g., diff viewer)
-    // Must be done after gitUser config since git commit requires user info
     if (!source && gitUser) {
       await sdk.runCommand({
         cmd: "git",
@@ -474,10 +507,8 @@ ${hostLine}${portLines}${runtimeEnvLine}`;
       });
     }
 
-    // Track the current branch
     let currentBranch: string | undefined;
 
-    // Create and checkout a new branch if specified
     if (source?.newBranch) {
       const checkoutResult = await sdk.runCommand({
         cmd: "git",
@@ -496,12 +527,11 @@ ${hostLine}${portLines}${runtimeEnvLine}`;
       currentBranch = source.branch;
     }
 
-    // Capture startTime AFTER all setup operations so users get their full timeout duration
     const startTime = Date.now();
 
     const sandbox = new VercelSandbox(
       sdk,
-      sdk.sandboxId,
+      sdk.name,
       workingDirectory,
       env,
       currentBranch,
@@ -509,9 +539,9 @@ ${hostLine}${portLines}${runtimeEnvLine}`;
       effectiveTimeout,
       startTime,
       ports,
+      { resumeOnAccess: true },
     );
 
-    // Call afterStart hook if provided
     if (hooks?.afterStart) {
       await hooks.afterStart(sandbox);
     }
@@ -520,46 +550,44 @@ ${hostLine}${portLines}${runtimeEnvLine}`;
   }
 
   /**
-   * Connect to an existing Vercel Sandbox by ID.
+   * Connect to an existing Vercel Sandbox by name.
    */
   static async connect(
     sandboxId: string,
     options: {
       env?: Record<string, string>;
       hooks?: SandboxHooks;
-      /**
-       * Remaining timeout in ms for this sandbox.
-       * If not provided, defaults to DEFAULT_RECONNECT_TIMEOUT_MS (5 minutes).
-       * This ensures timeout tracking and proactive stop work correctly.
-       */
       remainingTimeout?: number;
-      /** Ports that were declared at creation time (for preview URL display) */
       ports?: number[];
+      resume?: boolean;
     } = {},
   ): Promise<VercelSandbox> {
-    const sdk = await VercelSandboxSDK.get({ sandboxId });
-
-    // Use provided remainingTimeout or default to DEFAULT_RECONNECT_TIMEOUT_MS
-    // This ensures timeout tracking is always enabled for reconnected sandboxes,
-    // allowing beforeStop and onTimeout hooks to fire properly.
-    const remainingTimeout =
-      options.remainingTimeout ?? DEFAULT_RECONNECT_TIMEOUT_MS;
-    const startTime = Date.now();
+    const resume = options.resume ?? true;
+    const sdk = await VercelSandboxSDK.get({ name: sandboxId, resume });
+    const session = sdk.currentSession();
+    const isStopped = isStoppedSessionStatus(session.status);
+    const remainingTimeout = isStopped
+      ? undefined
+      : (options.remainingTimeout ?? DEFAULT_RECONNECT_TIMEOUT_MS);
+    const startTime = isStopped ? undefined : Date.now();
 
     const sandbox = new VercelSandbox(
       sdk,
-      sandboxId,
-      DEFAULT_WORKING_DIRECTORY,
+      sdk.name,
+      getWorkingDirectory(sdk),
       options.env,
       undefined,
       options.hooks,
       remainingTimeout,
       startTime,
       options.ports,
+      {
+        resumeOnAccess: resume,
+        isStopped,
+      },
     );
 
-    // Call afterStart hook if provided (useful for reconnection setup)
-    if (options.hooks?.afterStart) {
+    if (options.hooks?.afterStart && !isStopped) {
       await options.hooks.afterStart(sandbox);
     }
 
@@ -567,10 +595,11 @@ ${hostLine}${portLines}${runtimeEnvLine}`;
   }
 
   async readFile(path: string, _encoding: "utf-8"): Promise<string> {
-    // Use the SDK's native readFileToBuffer method which handles streaming
-    // internally, avoiding the command output size limit that can occur with
-    // large files when using `cat` via runCommand.
-    const buffer = await this.sdk.readFileToBuffer({ path });
+    if (!this.resumeOnAccess) {
+      this.ensureSessionAvailable();
+    }
+
+    const buffer = await this.getOperationTarget().readFileToBuffer({ path });
 
     if (buffer === null) {
       throw new Error(`Failed to read file: ${path}`);
@@ -584,6 +613,10 @@ ${hostLine}${portLines}${runtimeEnvLine}`;
     content: string,
     _encoding: "utf-8",
   ): Promise<void> {
+    if (!this.resumeOnAccess) {
+      this.ensureSessionAvailable();
+    }
+
     // Ensure parent directory exists
     const parentDir = path.substring(0, path.lastIndexOf("/"));
     if (parentDir) {
@@ -756,24 +789,22 @@ ${hostLine}${portLines}${runtimeEnvLine}`;
     command: string,
     cwd: string,
   ): Promise<{ commandId: string }> {
-    const result = await this.sdk.runCommand({
+    const result = await this.runCommandOnTarget({
       cmd: "bash",
       args: ["-c", `cd "${cwd}" && ${command}`],
       env: this.getCommandEnv(),
       detached: true,
     });
 
-    const abortController = new AbortController();
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
     const timeoutResult = new Promise<{ kind: "timeout" }>((resolve) => {
       timeoutId = setTimeout(() => {
-        abortController.abort();
         resolve({ kind: "timeout" });
       }, DETACHED_QUICK_FAILURE_WINDOW_MS);
     });
 
     const waitResult = result
-      .wait({ signal: abortController.signal })
+      .wait()
       .then((finished) => ({ kind: "finished", finished }) as const)
       .catch((error: unknown) => ({ kind: "error", error }) as const);
 
@@ -943,6 +974,7 @@ export async function connectVercelSandbox(
       env: config.env,
       hooks: config.hooks,
       remainingTimeout: config.remainingTimeout,
+      resume: config.resume,
     });
   }
   return VercelSandbox.create(config);

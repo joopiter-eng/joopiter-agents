@@ -11,7 +11,7 @@ import {
 } from "@/lib/sandbox/lifecycle";
 import {
   clearSandboxState,
-  hasRuntimeSandboxState,
+  hasSandboxIdentity,
   isSandboxUnavailableError,
 } from "@/lib/sandbox/utils";
 
@@ -76,22 +76,10 @@ export async function GET(req: Request): Promise<Response> {
 
   const { sessionRecord } = sessionContext;
 
-  // No runtime sandbox state in DB
-  if (!hasRuntimeSandboxState(sessionRecord.sandboxState)) {
-    console.log(
-      `[Reconnect] session=${sessionId} status=no_sandbox hasSnapshot=${!!sessionRecord.snapshotUrl} runtimeState=false`,
-    );
-    return Response.json({
-      status: "no_sandbox",
-      hasSnapshot: !!sessionRecord.snapshotUrl,
-      lifecycle: buildLifecyclePayload(sessionRecord),
-    } satisfies ReconnectResponse);
-  }
-
   const state = sessionRecord.sandboxState;
-  if (!state) {
+  if (!state || !hasSandboxIdentity(state)) {
     console.log(
-      `[Reconnect] session=${sessionId} status=no_sandbox hasSnapshot=${!!sessionRecord.snapshotUrl} runtimeState=false`,
+      `[Reconnect] session=${sessionId} status=no_sandbox hasSnapshot=${!!sessionRecord.snapshotUrl} hasIdentity=false`,
     );
     return Response.json({
       status: "no_sandbox",
@@ -100,9 +88,13 @@ export async function GET(req: Request): Promise<Response> {
     } satisfies ReconnectResponse);
   }
 
-  // Connect and probe the persisted runtime sandbox state.
+  // Connect without auto-resuming so we can distinguish running sandboxes from
+  // persistent sandboxes that are currently stopped.
   try {
-    const sandbox = await connectSandbox(state as SandboxState);
+    const sandbox = await connectSandbox({
+      state: state as SandboxState,
+      options: { resume: false },
+    });
     const probe = await sandbox.exec("pwd", sandbox.workingDirectory, 15_000);
     if (!probe.success) {
       const probeError =

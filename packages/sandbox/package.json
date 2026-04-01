@@ -16,7 +16,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@vercel/sandbox": "^1.3.0"
+    "@vercel/sandbox": "beta"
   },
   "devDependencies": {
     "@open-harness/tsconfig": "workspace:*",

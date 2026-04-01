@@ -24,6 +24,7 @@ import {
   refreshDiffCache,
   runAutoCommitStep,
   runAutoCreatePrStep,
+  updateSessionPostTurnPhase,
 } from "./chat-post-finish";
 import { dedupeMessageReasoning } from "@/lib/chat/dedupe-message-reasoning";
 
@@ -114,6 +115,7 @@ export async function runAgentWorkflow(options: Options) {
   let totalUsage: LanguageModelUsage | undefined;
   let finalFinishReason: FinishReason | undefined;
   let streamClosed = false;
+  let shouldClearPostTurnPhaseInFinally = false;
 
   try {
     for (
@@ -153,6 +155,25 @@ export async function runAgentWorkflow(options: Options) {
       }
     }
 
+    const sandboxState = options.agentOptions.sandbox?.state;
+    const finishedNaturally =
+      !wasAborted &&
+      finalFinishReason !== undefined &&
+      finalFinishReason !== "tool-calls";
+    const repoOwner = options.repoOwner;
+    const repoName = options.repoName;
+    const shouldRunAutoCommit =
+      finishedNaturally &&
+      options.autoCommitEnabled === true &&
+      sandboxState !== undefined &&
+      repoOwner !== undefined &&
+      repoName !== undefined;
+
+    if (shouldRunAutoCommit) {
+      await updateSessionPostTurnPhase(options.sessionId, "auto_commit");
+      shouldClearPostTurnPhaseInFinally = true;
+    }
+
     // Close the stream immediately after generation so the UI is unblocked.
     await Promise.all([
       clearActiveStream(options.chatId, workflowRunId),
@@ -175,33 +196,21 @@ export async function runAgentWorkflow(options: Options) {
     );
 
     // Persist the sandbox state so lifecycle timers stay accurate.
-    const sandboxState = options.agentOptions.sandbox?.state;
     if (sandboxState) {
       await persistSandboxState(options.sessionId, sandboxState);
     }
-
-    const finishedNaturally =
-      !wasAborted &&
-      finalFinishReason !== undefined &&
-      finalFinishReason !== "tool-calls";
 
     let autoCommitResult: Awaited<ReturnType<typeof runAutoCommitStep>> | null =
       null;
 
     // Auto-commit if enabled and the agent reached a terminal finish.
-    if (
-      finishedNaturally &&
-      options.autoCommitEnabled &&
-      sandboxState &&
-      options.repoOwner &&
-      options.repoName
-    ) {
+    if (shouldRunAutoCommit) {
       autoCommitResult = await runAutoCommitStep({
         userId: options.userId,
         sessionId: options.sessionId,
         sessionTitle: options.sessionTitle ?? "",
-        repoOwner: options.repoOwner,
-        repoName: options.repoName,
+        repoOwner: repoOwner as string,
+        repoName: repoName as string,
         sandboxState,
       });
     }
@@ -210,23 +219,20 @@ export async function runAgentWorkflow(options: Options) {
       autoCommitResult != null &&
       !autoCommitResult.error &&
       (autoCommitResult.pushed || !autoCommitResult.committed);
+    const shouldRunAutoCreatePr =
+      shouldRunAutoCommit &&
+      options.autoCreatePrEnabled === true &&
+      canAutoCreatePr;
 
     // Auto-create a PR if auto-commit left origin in sync with the local HEAD.
-    if (
-      finishedNaturally &&
-      options.autoCommitEnabled &&
-      options.autoCreatePrEnabled &&
-      canAutoCreatePr &&
-      sandboxState &&
-      options.repoOwner &&
-      options.repoName
-    ) {
+    if (shouldRunAutoCreatePr) {
+      await updateSessionPostTurnPhase(options.sessionId, "auto_pr");
       await runAutoCreatePrStep({
         userId: options.userId,
         sessionId: options.sessionId,
         sessionTitle: options.sessionTitle ?? "",
-        repoOwner: options.repoOwner,
-        repoName: options.repoName,
+        repoOwner: repoOwner as string,
+        repoName: repoName as string,
         sandboxState,
       });
     }
@@ -243,6 +249,10 @@ export async function runAgentWorkflow(options: Options) {
         clearActiveStream(options.chatId, workflowRunId),
         sendFinish(writable).then(() => closeStream(writable)),
       ]);
+    }
+
+    if (shouldClearPostTurnPhaseInFinally) {
+      await updateSessionPostTurnPhase(options.sessionId, null);
     }
   }
 }

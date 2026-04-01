@@ -90,6 +90,7 @@ const {
   refreshDiffCache,
   runAutoCommitStep,
   runAutoCreatePrStep,
+  updateSessionPostTurnPhase,
 } = await import("./chat-post-finish");
 
 // ── Helpers ────────────────────────────────────────────────────────
@@ -260,6 +261,24 @@ describe("persistSandboxState", () => {
     );
 
     await persistSandboxState("session-1", { type: "vercel" } as never);
+  });
+});
+
+describe("updateSessionPostTurnPhase", () => {
+  test("persists the current post-turn phase on the session", async () => {
+    await updateSessionPostTurnPhase("session-1", "auto_commit");
+
+    expect(spies.updateSession).toHaveBeenCalledWith("session-1", {
+      postTurnPhase: "auto_commit",
+    });
+  });
+
+  test("does not throw when the session update fails", async () => {
+    spies.updateSession.mockImplementationOnce(() =>
+      Promise.reject(new Error("DB down")),
+    );
+
+    await updateSessionPostTurnPhase("session-1", null);
   });
 });
 

@@ -12,6 +12,7 @@ const spies = {
   clearActiveStream: mock(() => Promise.resolve()),
   recordWorkflowUsage: mock(() => Promise.resolve()),
   refreshDiffCache: mock(() => Promise.resolve()),
+  updateSessionPostTurnPhase: mock(() => Promise.resolve()),
   runAutoCommitStep: mock(() =>
     Promise.resolve({ committed: false, pushed: false }),
   ),
@@ -331,6 +332,11 @@ describe("runAgentWorkflow", () => {
       }),
     );
 
+    expect(spies.updateSessionPostTurnPhase).toHaveBeenNthCalledWith(
+      1,
+      "session-1",
+      "auto_commit",
+    );
     expect(spies.runAutoCommitStep).toHaveBeenCalledTimes(1);
     expect(spies.runAutoCommitStep).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -338,6 +344,10 @@ describe("runAgentWorkflow", () => {
         repoOwner: "acme",
         repoName: "repo",
       }),
+    );
+    expect(spies.updateSessionPostTurnPhase).toHaveBeenLastCalledWith(
+      "session-1",
+      null,
     );
   });
 
@@ -352,6 +362,16 @@ describe("runAgentWorkflow", () => {
       }),
     );
 
+    expect(spies.updateSessionPostTurnPhase).toHaveBeenNthCalledWith(
+      1,
+      "session-1",
+      "auto_commit",
+    );
+    expect(spies.updateSessionPostTurnPhase).toHaveBeenNthCalledWith(
+      2,
+      "session-1",
+      "auto_pr",
+    );
     expect(spies.runAutoCreatePrStep).toHaveBeenCalledTimes(1);
     expect(spies.runAutoCreatePrStep).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -359,6 +379,10 @@ describe("runAgentWorkflow", () => {
         repoOwner: "acme",
         repoName: "repo",
       }),
+    );
+    expect(spies.updateSessionPostTurnPhase).toHaveBeenLastCalledWith(
+      "session-1",
+      null,
     );
   });
 
@@ -445,6 +469,7 @@ describe("runAgentWorkflow", () => {
     );
 
     expect(spies.runAutoCommitStep).not.toHaveBeenCalled();
+    expect(spies.updateSessionPostTurnPhase).not.toHaveBeenCalled();
   });
 
   test("skips auto-commit when repoOwner is missing", async () => {

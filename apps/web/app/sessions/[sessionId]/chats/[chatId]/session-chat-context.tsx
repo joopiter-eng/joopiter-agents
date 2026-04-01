@@ -149,6 +149,8 @@ type SessionChatContextValue = {
   skillsError: string | null;
   /** Trigger a skills refresh */
   refreshSkills: () => Promise<void>;
+  /** Refresh the full session record from the server */
+  refreshSession: () => Promise<Session | undefined>;
   /** Update session snapshot info after saving */
   updateSessionSnapshot: (snapshotUrl: string, snapshotCreatedAt: Date) => void;
   /** Preferred sandbox mode to request when creating a new sandbox */
@@ -225,6 +227,7 @@ type SessionChatWorkspaceContextValue = Pick<
   | "skillsLoading"
   | "skillsError"
   | "refreshSkills"
+  | "refreshSession"
 >;
 
 type SessionChatMetadataContextValue = Pick<
@@ -833,6 +836,20 @@ export function SessionChatProvider({
     await refreshSkillsSWR();
   }, [refreshSkillsSWR]);
 
+  const refreshSession = useCallback(async () => {
+    const res = await fetch(`/api/sessions/${sessionRecord.id}`, {
+      cache: "no-store",
+    });
+
+    const data = (await res.json()) as { session?: Session; error?: string };
+    if (!res.ok || !data.session) {
+      throw new Error(data.error ?? "Failed to refresh session");
+    }
+
+    setSessionRecord(data.session);
+    return data.session;
+  }, [sessionRecord.id]);
+
   const archiveSession = useCallback(async () => {
     const previousSession = sessionRecord;
     const optimisticSession: Session = {
@@ -1038,6 +1055,7 @@ export function SessionChatProvider({
       skillsLoading,
       skillsError,
       refreshSkills,
+      refreshSession,
     }),
     [
       sandboxInfo,
@@ -1060,6 +1078,7 @@ export function SessionChatProvider({
       skillsLoading,
       skillsError,
       refreshSkills,
+      refreshSession,
     ],
   );
 

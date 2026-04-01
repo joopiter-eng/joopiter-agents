@@ -2,89 +2,134 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { SessionGitStatus } from "@/hooks/use-session-git-status";
+import type { SessionPostTurnPhase } from "@/lib/session/post-turn-phase";
 
-const AUTO_COMMIT_REFRESH_DELAYS_MS = [3000, 8000, 16000] as const;
-const AUTO_COMMIT_UI_TIMEOUT_MS = 30_000;
+const POST_TURN_REFRESH_DELAYS_MS = [1500, 4000, 8000] as const;
+const POST_TURN_OPTIMISTIC_TIMEOUT_MS = 30_000;
+
+type UseAutoCommitStatusParams = {
+  autoCommitEnabled: boolean;
+  autoCreatePrEnabled: boolean;
+  sessionPostTurnPhase: SessionPostTurnPhase | null | undefined;
+  gitStatus: SessionGitStatus | null;
+  hasExistingPr: boolean;
+  refresh: () => void;
+};
 
 /**
- * Tracks optimistic auto-commit-in-progress state for the UI.
+ * Tracks the navbar's post-stream git automation state.
  *
- * When the chat stream closes, auto-commit runs server-side *after* the
- * stream is already closed. The immediate git-status refresh will still see
- * uncommitted changes, which causes the "Commit & Push" button to flash
- * before the server-side commit lands. This hook lets the UI show a loading
- * state instead.
- *
- * It also owns the staggered follow-up refresh schedule: when auto-commit
- * is enabled the hook fires the provided `refresh` callback at 3 s, 8 s,
- * and 16 s to catch the server-side commit finishing. Timeouts are managed
- * in a dedicated effect so unrelated re-renders cannot cancel them.
- *
- * The hook includes a hard timeout fallback so the UI does not get stuck in
- * "Committing..." when auto-commit is skipped (aborted stream) or fails.
+ * The server now persists a durable `session.postTurnPhase`, but we still keep
+ * a local optimistic phase so the current tab can render "Committing..."
+ * immediately when the assistant stream closes.
  */
-export function useAutoCommitStatus(
-  autoCommitEnabled: boolean,
-  gitStatus: SessionGitStatus | null,
-  refresh: () => void,
-) {
-  const [isAutoCommitting, setIsAutoCommitting] = useState(false);
-  const [autoCommitCycle, setAutoCommitCycle] = useState(0);
+export function useAutoCommitStatus({
+  autoCommitEnabled,
+  autoCreatePrEnabled,
+  sessionPostTurnPhase,
+  gitStatus,
+  hasExistingPr,
+  refresh,
+}: UseAutoCommitStatusParams) {
+  const [optimisticPhase, setOptimisticPhase] =
+    useState<SessionPostTurnPhase | null>(null);
+  const serverPhaseSeenRef = useRef(false);
+  const refreshRef = useRef(refresh);
+  refreshRef.current = refresh;
 
-  // Called by the stream-completion effect to optimistically mark auto-commit
-  // as in progress and kick off the staggered refresh schedule.
   const markAutoCommitStarted = useCallback(() => {
     if (!autoCommitEnabled) {
       return;
     }
 
-    setIsAutoCommitting(true);
-    setAutoCommitCycle((current) => current + 1);
+    serverPhaseSeenRef.current = false;
+    setOptimisticPhase("auto_commit");
   }, [autoCommitEnabled]);
 
-  // If auto-commit has been disabled for this session while the optimistic
-  // spinner is active, immediately clear the loading state.
-  useEffect(() => {
-    if (!autoCommitEnabled && isAutoCommitting) {
-      setIsAutoCommitting(false);
-    }
-  }, [autoCommitEnabled, isAutoCommitting]);
-
-  // Clear the flag once git status confirms there's nothing left to commit
-  // (i.e. the server-side auto-commit has landed).
+  const activePhase = sessionPostTurnPhase ?? optimisticPhase;
   const hasUncommittedChanges = gitStatus?.hasUncommittedChanges ?? false;
   const hasUnpushedCommits = gitStatus?.hasUnpushedCommits ?? false;
+
   useEffect(() => {
-    if (isAutoCommitting && !hasUncommittedChanges && !hasUnpushedCommits) {
-      setIsAutoCommitting(false);
+    if (!sessionPostTurnPhase) {
+      if (optimisticPhase && serverPhaseSeenRef.current) {
+        serverPhaseSeenRef.current = false;
+        setOptimisticPhase(null);
+      }
+      return;
     }
-  }, [isAutoCommitting, hasUncommittedChanges, hasUnpushedCommits]);
 
-  // Schedule staggered follow-up refreshes when auto-commit starts.
-  // We use a ref for the refresh callback so the timeouts are never torn
-  // down by callback reference changes — only by `isAutoCommitting`
-  // transitioning back to false, unmount, or a new auto-commit cycle.
-  const refreshRef = useRef(refresh);
-  refreshRef.current = refresh;
+    serverPhaseSeenRef.current = true;
+  }, [sessionPostTurnPhase, optimisticPhase]);
 
   useEffect(() => {
-    if (!isAutoCommitting || autoCommitCycle === 0) return;
+    if (!autoCommitEnabled && optimisticPhase) {
+      serverPhaseSeenRef.current = false;
+      setOptimisticPhase(null);
+    }
+  }, [autoCommitEnabled, optimisticPhase]);
 
-    const refreshTimeouts = AUTO_COMMIT_REFRESH_DELAYS_MS.map((delay) =>
+  useEffect(() => {
+    if (sessionPostTurnPhase || !optimisticPhase) {
+      return;
+    }
+
+    if (optimisticPhase === "auto_pr") {
+      if (hasExistingPr || (!hasUncommittedChanges && !hasUnpushedCommits)) {
+        serverPhaseSeenRef.current = false;
+        setOptimisticPhase(null);
+      }
+      return;
+    }
+
+    if (
+      optimisticPhase === "auto_commit" &&
+      !autoCreatePrEnabled &&
+      !hasUncommittedChanges &&
+      !hasUnpushedCommits
+    ) {
+      serverPhaseSeenRef.current = false;
+      setOptimisticPhase(null);
+    }
+  }, [
+    sessionPostTurnPhase,
+    optimisticPhase,
+    hasExistingPr,
+    hasUncommittedChanges,
+    hasUnpushedCommits,
+    autoCreatePrEnabled,
+  ]);
+
+  useEffect(() => {
+    if (!activePhase) {
+      return;
+    }
+
+    const refreshTimeouts = POST_TURN_REFRESH_DELAYS_MS.map((delay) =>
       setTimeout(() => {
         refreshRef.current();
       }, delay),
     );
 
     const fallbackTimeout = setTimeout(() => {
-      setIsAutoCommitting(false);
-    }, AUTO_COMMIT_UI_TIMEOUT_MS);
+      if (!sessionPostTurnPhase) {
+        serverPhaseSeenRef.current = false;
+        setOptimisticPhase(null);
+      }
+    }, POST_TURN_OPTIMISTIC_TIMEOUT_MS);
 
     return () => {
-      for (const t of refreshTimeouts) clearTimeout(t);
+      for (const timeout of refreshTimeouts) {
+        clearTimeout(timeout);
+      }
       clearTimeout(fallbackTimeout);
     };
-  }, [isAutoCommitting, autoCommitCycle]);
+  }, [activePhase, sessionPostTurnPhase]);
 
-  return { isAutoCommitting, markAutoCommitStarted } as const;
+  return {
+    postTurnPhase: activePhase,
+    isAutoCommitting: activePhase === "auto_commit",
+    isAutoCreatingPr: activePhase === "auto_pr",
+    markAutoCommitStarted,
+  } as const;
 }

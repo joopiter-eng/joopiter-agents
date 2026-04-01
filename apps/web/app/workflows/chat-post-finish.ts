@@ -2,6 +2,7 @@ import type { LanguageModelUsage } from "ai";
 import type { SandboxState, Sandbox } from "@open-harness/sandbox";
 import type { WebAgentUIMessage } from "@/app/types";
 import type { AutoCommitResult } from "@/lib/chat/auto-commit-direct";
+import type { SessionPostTurnPhase } from "@/lib/session/post-turn-phase";
 import {
   compareAndSetChatActiveStreamId,
   createChatMessageIfNotExists,
@@ -205,6 +206,22 @@ function delay(ms: number) {
   return new Promise<void>((resolve) => {
     setTimeout(resolve, ms);
   });
+}
+
+export async function updateSessionPostTurnPhase(
+  sessionId: string,
+  phase: SessionPostTurnPhase | null,
+): Promise<void> {
+  "use step";
+
+  try {
+    await updateSession(sessionId, { postTurnPhase: phase });
+  } catch (error) {
+    console.error(
+      "[workflow] Failed to update session post-turn phase:",
+      error,
+    );
+  }
 }
 
 export async function recordWorkflowUsage(

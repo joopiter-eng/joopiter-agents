@@ -169,6 +169,13 @@
       "when": 1774310138902,
       "tag": "0023_colorful_gladiator",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1775038045553,
+      "tag": "0024_square_yellowjacket",
+      "breakpoints": true
     }
   ]
 }

@@ -6,7 +6,8 @@ import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 
 interface CommitActionButtonProps {
   label: string;
-  isAutoCommitting: boolean;
+  isPending: boolean;
+  pendingLabel?: string;
   hasUncommittedChanges: boolean;
   onClick: () => void;
 }
@@ -14,7 +15,8 @@ interface CommitActionButtonProps {
 /** Primary header button for commit actions (outline style, responsive). */
 export function CommitActionHeaderButton({
   label,
-  isAutoCommitting,
+  isPending,
+  pendingLabel = "Committing...",
   hasUncommittedChanges,
   onClick,
 }: CommitActionButtonProps) {
@@ -23,18 +25,18 @@ export function CommitActionHeaderButton({
       variant="outline"
       size="sm"
       className="relative h-8 w-8 px-0 xl:w-auto xl:px-3"
-      disabled={isAutoCommitting}
+      disabled={isPending}
       onClick={onClick}
     >
-      {isAutoCommitting ? (
+      {isPending ? (
         <Loader2 className="h-4 w-4 animate-spin xl:mr-2" />
       ) : (
         <GitCommit className="h-4 w-4 xl:mr-2" />
       )}
       <span className="hidden xl:inline">
-        {isAutoCommitting ? "Committing..." : label}
+        {isPending ? pendingLabel : label}
       </span>
-      {hasUncommittedChanges && !isAutoCommitting && (
+      {hasUncommittedChanges && !isPending && (
         <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-orange-500" />
       )}
     </Button>
@@ -44,17 +46,18 @@ export function CommitActionHeaderButton({
 /** Dropdown menu item for commit actions. */
 export function CommitActionMenuItem({
   label,
-  isAutoCommitting,
+  isPending,
+  pendingLabel = "Committing...",
   onClick,
 }: Omit<CommitActionButtonProps, "hasUncommittedChanges">) {
   return (
-    <DropdownMenuItem disabled={isAutoCommitting} onClick={onClick}>
-      {isAutoCommitting ? (
+    <DropdownMenuItem disabled={isPending} onClick={onClick}>
+      {isPending ? (
         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
       ) : (
         <GitCommit className="mr-2 h-4 w-4" />
       )}
-      {isAutoCommitting ? "Committing..." : label}
+      {isPending ? pendingLabel : label}
     </DropdownMenuItem>
   );
 }

@@ -1032,6 +1032,7 @@ export function SessionChatContent({
     refreshFiles,
     skills,
     skillsLoading,
+    refreshSession,
   } = useSessionChatWorkspaceContext();
   const autoCommitEnabled = Boolean(
     session.cloneUrl &&
@@ -1039,16 +1040,25 @@ export function SessionChatContent({
     session.repoName &&
     (session.autoCommitPushOverride ?? preferences?.autoCommitPush ?? false),
   );
-  const { isAutoCommitting, markAutoCommitStarted } = useAutoCommitStatus(
-    autoCommitEnabled,
-    gitStatus,
-    () => {
-      void refreshGitStatus().catch(() => undefined);
-      void refreshDiff().catch(() => undefined);
-      void refreshFiles().catch(() => undefined);
-      void checkBranchAndPr().catch(() => undefined);
-    },
+  const autoCreatePrEnabled = Boolean(
+    autoCommitEnabled &&
+    (session.autoCreatePrOverride ?? preferences?.autoCreatePr ?? false),
   );
+  const { postTurnPhase, isAutoCommitting, markAutoCommitStarted } =
+    useAutoCommitStatus({
+      autoCommitEnabled,
+      autoCreatePrEnabled,
+      sessionPostTurnPhase: session.postTurnPhase,
+      gitStatus,
+      hasExistingPr: session.prNumber != null,
+      refresh: () => {
+        void refreshSession().catch(() => undefined);
+        void refreshGitStatus().catch(() => undefined);
+        void refreshDiff().catch(() => undefined);
+        void refreshFiles().catch(() => undefined);
+        void checkBranchAndPr().catch(() => undefined);
+      },
+    });
   const {
     messages,
     error,
@@ -1873,6 +1883,7 @@ export function SessionChatContent({
 
       const refreshCompletedTurnState = async () => {
         await requestStatusSync("force").catch(() => undefined);
+        await refreshSession().catch(() => undefined);
         await refreshGitStatus().catch(() => undefined);
         await refreshDiff().catch(() => undefined);
         await refreshFiles().catch(() => undefined);
@@ -1901,6 +1912,7 @@ export function SessionChatContent({
     setChatStreaming,
     clearChatTitle,
     requestStatusSync,
+    refreshSession,
     refreshGitStatus,
     refreshDiff,
     refreshFiles,
@@ -2412,8 +2424,15 @@ export function SessionChatContent({
   const showCommitAction =
     hasRepo &&
     (hasUncommittedGitChanges || (hasExistingPr && hasUnpushedCommits));
+  const hasPendingPostTurnGitAction = postTurnPhase != null;
+  const pendingPostTurnGitActionLabel =
+    postTurnPhase === "auto_pr" ? "Creating PR..." : "Committing...";
   const hasOpenPr = hasExistingPr && session.prStatus === "open";
-  const canMergeAndArchive = hasOpenPr && !showCommitAction && !isArchived;
+  const canMergeAndArchive =
+    hasOpenPr &&
+    !showCommitAction &&
+    !hasPendingPostTurnGitAction &&
+    !isArchived;
   const canCloseAndArchive = hasOpenPr && !isArchived;
   const commitActionLabel = hasExistingPr ? "Commit & Push" : "Commit Changes";
   const openExistingPr = () => {
@@ -2438,6 +2457,7 @@ export function SessionChatContent({
     }
 
     await Promise.all([
+      refreshSession().catch(() => undefined),
       refreshGitStatus().catch(() => undefined),
       refreshDiff().catch(() => undefined),
       refreshFiles().catch(() => undefined),
@@ -2451,6 +2471,7 @@ export function SessionChatContent({
     hasExistingPr,
     hasBranchPreviewLookup,
     prDeploymentUrl,
+    refreshSession,
     refreshGitStatus,
     refreshDiff,
     refreshFiles,
@@ -2577,11 +2598,19 @@ export function SessionChatContent({
             {/* Overflow menu + primary git action */}
             <div className="flex items-center gap-1">
               {hasRepo ? (
-                hasExistingPr ? (
+                hasPendingPostTurnGitAction ? (
+                  <CommitActionHeaderButton
+                    label={commitActionLabel}
+                    isPending
+                    pendingLabel={pendingPostTurnGitActionLabel}
+                    hasUncommittedChanges={false}
+                    onClick={() => undefined}
+                  />
+                ) : hasExistingPr ? (
                   showCommitAction ? (
                     <CommitActionHeaderButton
                       label={commitActionLabel}
-                      isAutoCommitting={isAutoCommitting}
+                      isPending={isAutoCommitting}
                       hasUncommittedChanges={hasUncommittedGitChanges}
                       onClick={() => setCommitDialogOpen(true)}
                     />
@@ -2625,7 +2654,7 @@ export function SessionChatContent({
                 ) : showCommitAction ? (
                   <CommitActionHeaderButton
                     label={commitActionLabel}
-                    isAutoCommitting={isAutoCommitting}
+                    isPending={isAutoCommitting}
                     hasUncommittedChanges={hasUncommittedGitChanges}
                     onClick={() => setCommitDialogOpen(true)}
                   />
@@ -2750,7 +2779,14 @@ export function SessionChatContent({
                     </DropdownMenuItem>
                   )}
                   {hasRepo ? (
-                    hasExistingPr ? (
+                    hasPendingPostTurnGitAction ? (
+                      <CommitActionMenuItem
+                        label={commitActionLabel}
+                        isPending
+                        pendingLabel={pendingPostTurnGitActionLabel}
+                        onClick={() => undefined}
+                      />
+                    ) : hasExistingPr ? (
                       <>
                         {prDeploymentUrl && (
                           <DropdownMenuItem
@@ -2792,7 +2828,7 @@ export function SessionChatContent({
                         {showCommitAction && (
                           <CommitActionMenuItem
                             label={commitActionLabel}
-                            isAutoCommitting={isAutoCommitting}
+                            isPending={isAutoCommitting}
                             onClick={() => setCommitDialogOpen(true)}
                           />
                         )}
@@ -2802,7 +2838,7 @@ export function SessionChatContent({
                         {showCommitAction && (
                           <CommitActionMenuItem
                             label={commitActionLabel}
-                            isAutoCommitting={isAutoCommitting}
+                            isPending={isAutoCommitting}
                             onClick={() => setCommitDialogOpen(true)}
                           />
                         )}

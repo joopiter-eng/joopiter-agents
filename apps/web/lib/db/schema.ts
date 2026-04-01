@@ -1,5 +1,6 @@
 import type { SandboxState } from "@open-harness/sandbox";
 import type { ModelVariant } from "@/lib/model-variants";
+import { SESSION_POST_TURN_PHASES } from "@/lib/session/post-turn-phase";
 import {
   boolean,
   index,
@@ -179,6 +180,11 @@ export const sessions = pgTable(
     prNumber: integer("pr_number"),
     prStatus: text("pr_status", {
       enum: ["open", "merged", "closed"],
+    }),
+    // Durable post-turn git workflow phase shown in the navbar after the
+    // assistant stream closes but before follow-up git automation completes.
+    postTurnPhase: text("post_turn_phase", {
+      enum: SESSION_POST_TURN_PHASES,
     }),
     // Snapshot info (for cached snapshots feature)
     snapshotUrl: text("snapshot_url"),

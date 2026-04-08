@@ -31,31 +31,30 @@ const theme = {
 
 /* ------------------------------------------------------------------ */
 /* Custom hunk separator                                               */
+/* Uses inline styles because the diff renders inside Shadow DOM       */
+/* where Tailwind classes are not available.                            */
 /* ------------------------------------------------------------------ */
-
-const separatorClasses = {
-  wrapper: "relative",
-  root: "absolute top-0 left-0 flex items-center gap-2 pl-[22px] text-[0.75rem] [font-family:var(--diffs-header-font-family,var(--diffs-header-font-fallback))]",
-  controls: "inline-flex gap-1",
-  button:
-    "relative m-0 inline-flex cursor-pointer appearance-none items-center border-0 bg-transparent p-0 text-inherit",
-  icon: "[font-family:var(--diffs-font-family,var(--diffs-font-fallback))] text-base leading-none",
-  label:
-    "ml-3 whitespace-nowrap text-[color:var(--diffs-fg-number)] [font-family:var(--diffs-header-font-family,var(--diffs-header-font-fallback))]",
-} as const;
 
 function renderCustomSeparator(
   hunkData: HunkData,
   instance: FileDiff<undefined>,
 ) {
   const wrapper = document.createElement("div");
-  wrapper.className = separatorClasses.wrapper;
+  wrapper.style.position = "relative";
 
   const root = document.createElement("div");
-  root.className = separatorClasses.root;
-
-  const controls = document.createElement("div");
-  controls.className = separatorClasses.controls;
+  Object.assign(root.style, {
+    position: "absolute",
+    top: "0",
+    left: "0",
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    paddingLeft: "22px",
+    fontSize: "0.75rem",
+    fontFamily:
+      "var(--diffs-header-font-family, var(--diffs-header-font-fallback))",
+  });
 
   if (hunkData.type === "additions") {
     const spacer = document.createElement("span");
@@ -70,18 +69,49 @@ function renderCustomSeparator(
   function createControl(direction: ExpansionDirections) {
     const button = document.createElement("button");
     button.type = "button";
-    button.className = separatorClasses.button;
+    Object.assign(button.style, {
+      position: "relative",
+      margin: "0",
+      display: "inline-flex",
+      cursor: "pointer",
+      appearance: "none",
+      alignItems: "center",
+      border: "none",
+      background: "transparent",
+      padding: "0",
+      color: "inherit",
+    });
+
     const icon = document.createElement("span");
-    icon.className = separatorClasses.icon;
+    Object.assign(icon.style, {
+      fontFamily:
+        "var(--diffs-font-family, var(--diffs-font-fallback))",
+      fontSize: "1rem",
+      lineHeight: "1",
+    });
     icon.textContent =
       direction === "up" ? "↓" : direction === "down" ? "↑" : "↕";
+
     const label = document.createElement("span");
-    label.className = separatorClasses.label;
+    Object.assign(label.style, {
+      marginLeft: "8px",
+      whiteSpace: "nowrap",
+      color: "var(--diffs-fg-number)",
+      fontFamily:
+        "var(--diffs-header-font-family, var(--diffs-header-font-fallback))",
+    });
     label.textContent = labelText;
+
     button.append(icon, label);
     button.onclick = () => instance.expandHunk(hunkData.hunkIndex, direction);
     return button;
   }
+
+  const controls = document.createElement("div");
+  Object.assign(controls.style, {
+    display: "inline-flex",
+    gap: "4px",
+  });
 
   if (hunkData.expandable?.up && hunkData.expandable?.down) {
     controls.append(createControl("both"));
@@ -91,7 +121,6 @@ function renderCustomSeparator(
     controls.append(createControl("down"));
   }
 
-  // Just the arrow + line count, no "Expand entire hunk" button
   root.append(controls);
 
   const spacer = document.createElement("span");

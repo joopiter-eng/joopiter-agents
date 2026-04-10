@@ -1,5 +1,7 @@
 # Open Harness
 
+howdy, world
+
 Open Harness is an open-source reference app for building and running background coding agents on Vercel. It includes the web UI, the agent runtime, sandbox orchestration, and the GitHub integration needed to go from prompt to code changes without keeping your laptop involved.
 
 The repo is meant to be forked and adapted, not treated as a black box.

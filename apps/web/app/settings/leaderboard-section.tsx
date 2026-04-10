@@ -2,13 +2,7 @@
 
 import { useMemo, useState } from "react";
 import useSWR from "swr";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -73,19 +67,19 @@ function displayModelId(modelId: string | null): string {
 
 export function LeaderboardSectionSkeleton() {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Internal leaderboard</CardTitle>
-        <CardDescription>
-          <Skeleton className="h-4 w-64" />
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3">
+    <div className="space-y-4">
+      <div className="space-y-1.5">
+        <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          Internal leaderboard
+        </h3>
+        <Skeleton className="h-4 w-64" />
+      </div>
+      <div className="space-y-3">
         {Array.from({ length: 8 }).map((_, i) => (
           <Skeleton key={i} className="h-10 w-full" />
         ))}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
 
@@ -137,64 +131,68 @@ export function LeaderboardSection() {
 
   if (error) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Internal leaderboard</CardTitle>
-        </CardHeader>
-        <CardContent>
+      <div className="space-y-4">
+        <div className="space-y-1.5">
+          <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            Internal leaderboard
+          </h3>
+        </div>
+        <div>
           <p className="text-sm text-muted-foreground">
             Failed to load leaderboard data.
           </p>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     );
   }
 
   if (!leaderboard) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Internal leaderboard</CardTitle>
-        </CardHeader>
-        <CardContent>
+      <div className="space-y-4">
+        <div className="space-y-1.5">
+          <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            Internal leaderboard
+          </h3>
+        </div>
+        <div>
           <p className="text-sm text-muted-foreground">
             The internal leaderboard is available for users with a verified
             organization email domain.
           </p>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     );
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="space-y-1">
-            <CardTitle>Internal leaderboard</CardTitle>
-            <CardDescription>
-              Ranked by total tokens for users with @{leaderboard.domain}.
-            </CardDescription>
-          </div>
-          <RangeFilter value={range} onChange={setRange} />
+    <div className="space-y-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="space-y-1.5">
+          <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            Internal leaderboard
+          </h3>
+          <p className="text-sm text-muted-foreground">
+            Ranked by total tokens for users with @{leaderboard.domain}.
+          </p>
         </div>
-        {currentUserRank ? (
-          <div className="text-sm text-muted-foreground">
-            Your rank:{" "}
-            <span className="font-semibold tabular-nums text-foreground">
-              #{currentUserRank}
-            </span>{" "}
-            of {leaderboard.rows.length}
-          </div>
-        ) : null}
-      </CardHeader>
-      <CardContent>
+        <RangeFilter value={range} onChange={setRange} />
+      </div>
+      {currentUserRank ? (
+        <div className="text-sm text-muted-foreground">
+          Your rank:{" "}
+          <span className="font-mono font-semibold tabular-nums text-foreground">
+            #{currentUserRank}
+          </span>{" "}
+          of {leaderboard.rows.length}
+        </div>
+      ) : null}
+      <div>
         {leaderboard.rows.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             No matching usage in this period.
           </p>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto rounded-lg border border-border/50 bg-muted/10">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -214,34 +212,51 @@ export function LeaderboardSection() {
                       key={row.userId}
                       className={isCurrentUser ? "bg-muted/50" : undefined}
                     >
-                      <TableCell className="text-muted-foreground tabular-nums">
+                      <TableCell className="font-mono text-muted-foreground tabular-nums">
                         {index + 1}
                       </TableCell>
                       <TableCell className="whitespace-normal">
-                        <div className="min-w-0">
-                          <div className="font-medium">
-                            {row.name?.trim() || row.username}
-                            {isCurrentUser ? (
-                              <span className="ml-1.5 text-xs font-normal text-muted-foreground">
-                                (you)
-                              </span>
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <Avatar className="size-7 text-xs">
+                            {row.avatarUrl && (
+                              <AvatarImage
+                                src={row.avatarUrl}
+                                alt={row.username}
+                              />
+                            )}
+                            <AvatarFallback>
+                              {(
+                                row.name?.trim()?.[0] ??
+                                row.username[0] ??
+                                "?"
+                              ).toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="min-w-0">
+                            <div className="font-medium">
+                              {row.name?.trim() || row.username}
+                              {isCurrentUser ? (
+                                <span className="ml-1.5 text-xs font-normal text-muted-foreground">
+                                  (you)
+                                </span>
+                              ) : null}
+                            </div>
+                            {row.name?.trim() ? (
+                              <div className="text-xs text-muted-foreground">
+                                @{row.username}
+                              </div>
                             ) : null}
                           </div>
-                          {row.name?.trim() ? (
-                            <div className="text-xs text-muted-foreground">
-                              @{row.username}
-                            </div>
-                          ) : null}
                         </div>
                       </TableCell>
-                      <TableCell className="text-right font-medium tabular-nums">
+                      <TableCell className="text-right font-mono font-medium tabular-nums">
                         {formatTokens(row.totalTokens)}
                       </TableCell>
                       <TableCell className="hidden whitespace-normal sm:table-cell">
                         <div className="font-medium">
                           {displayModelId(row.mostUsedModelId)}
                         </div>
-                        <div className="text-xs text-muted-foreground">
+                        <div className="font-mono text-xs tabular-nums text-muted-foreground">
                           {formatTokens(row.mostUsedModelTokens)} tokens
                         </div>
                       </TableCell>
@@ -252,7 +267,7 @@ export function LeaderboardSection() {
             </Table>
           </div>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

@@ -25,11 +25,11 @@ function parseInstallationId(value: string | null): number | null {
 
 function sanitizeRedirectTo(rawRedirectTo: string | null | undefined): string {
   if (!rawRedirectTo) {
-    return "/settings/accounts";
+    return "/settings/profile";
   }
 
   if (!rawRedirectTo.startsWith("/") || rawRedirectTo.startsWith("//")) {
-    return "/settings/accounts";
+    return "/settings/profile";
   }
 
   return rawRedirectTo;

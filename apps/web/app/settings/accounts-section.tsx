@@ -18,12 +18,14 @@ import { toast } from "sonner";
 import useSWR, { useSWRConfig } from "swr";
 import { Button } from "@/components/ui/button";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSession } from "@/hooks/use-session";
 import { fetcher } from "@/lib/swr";
@@ -60,7 +62,7 @@ function GitHubIcon({ className }: { className?: string }) {
 
 function startGitHubInstallForOrg(githubId: number) {
   const params = new URLSearchParams({
-    next: "/settings/accounts",
+    next: "/settings/connections",
     target_id: String(githubId),
   });
 
@@ -69,7 +71,7 @@ function startGitHubInstallForOrg(githubId: number) {
 
 function startGitHubInstallFromSettings() {
   const params = new URLSearchParams({
-    next: "/settings/accounts",
+    next: "/settings/connections",
   });
   window.location.href = `/api/github/app/install?${params.toString()}`;
 }
@@ -145,26 +147,35 @@ function useGitHubReturnToast() {
 
 export function AccountsSectionSkeleton() {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Connected Accounts</CardTitle>
-        <CardDescription>
-          Manage GitHub App installations to grant repository access.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="flex items-center justify-between rounded-lg border p-4">
+    <div className="space-y-6">
+      {/* GitHub section skeleton */}
+      <div className="rounded-lg border border-border/50 bg-muted/10">
+        <div className="flex items-center justify-between border-b border-border/50 px-4 py-3">
           <div className="flex items-center gap-3">
-            <Skeleton className="h-8 w-8 rounded-full" />
-            <div className="space-y-1">
-              <Skeleton className="h-4 w-20" />
-              <Skeleton className="h-3 w-32" />
-            </div>
+            <Skeleton className="h-5 w-5 rounded" />
+            <Skeleton className="h-4 w-16" />
           </div>
-          <Skeleton className="h-9 w-24" />
+          <Skeleton className="h-8 w-20" />
         </div>
-      </CardContent>
-    </Card>
+        <div className="space-y-2 p-4">
+          {[1, 2].map((i) => (
+            <div
+              key={i}
+              className="flex items-center justify-between rounded-lg border border-border/50 p-3"
+            >
+              <div className="flex items-center gap-3">
+                <Skeleton className="h-8 w-8 rounded-full" />
+                <div className="space-y-1">
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="h-3 w-32" />
+                </div>
+              </div>
+              <Skeleton className="h-8 w-20" />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -175,21 +186,21 @@ function OrgRow({ org }: { org: OrgInstallStatus }) {
   const isOrg = org.type === "Organization";
 
   return (
-    <div className="flex items-center justify-between gap-3 rounded-lg border p-3">
+    <div className="flex items-center justify-between gap-3 rounded-lg border border-border/50 px-4 py-3.5">
       <div className="flex items-center gap-3 min-w-0">
         {/* Avatar */}
         {org.avatarUrl ? (
           <Image
             src={org.avatarUrl}
             alt={org.login}
-            width={32}
-            height={32}
-            className="h-8 w-8 rounded-full"
+            width={36}
+            height={36}
+            className="h-9 w-9 rounded-full"
           />
         ) : isOrg ? (
-          <Building2 className="h-8 w-8 text-muted-foreground" />
+          <Building2 className="h-9 w-9 text-muted-foreground" />
         ) : (
-          <UserIcon className="h-8 w-8 text-muted-foreground" />
+          <UserIcon className="h-9 w-9 text-muted-foreground" />
         )}
 
         {/* Info */}
@@ -207,9 +218,6 @@ function OrgRow({ org }: { org: OrgInstallStatus }) {
               <span className="inline-flex items-center gap-1">
                 <CheckCircle2 className="size-3 text-green-500" />
                 Installed
-                {org.repositorySelection === "all"
-                  ? " - all repositories"
-                  : " - selected repositories"}
               </span>
             ) : (
               <span className="inline-flex items-center gap-1">
@@ -221,8 +229,15 @@ function OrgRow({ org }: { org: OrgInstallStatus }) {
         </div>
       </div>
 
-      {/* Actions */}
-      <div className="flex items-center gap-2 shrink-0">
+      {/* Right side: repo selection + action */}
+      <div className="flex items-center gap-3 shrink-0">
+        {isInstalled && (
+          <span className="hidden text-xs font-mono tabular-nums text-muted-foreground sm:inline">
+            {org.repositorySelection === "all"
+              ? "all repositories"
+              : "selected repositories"}
+          </span>
+        )}
         {isInstalled ? (
           org.installationUrl ? (
             <Button variant="outline" size="sm" asChild>
@@ -315,81 +330,157 @@ export function AccountsSection() {
     return <AccountsSectionSkeleton />;
   }
 
-  // ── State: no GitHub connected at all ──
-  // Single flow: install the GitHub App, which also handles OAuth authorization
-  // when "Request user authorization during installation" is enabled.
-  if (!hasGitHub) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Connected Accounts</CardTitle>
-          <CardDescription>
-            Install the GitHub App to grant repository access. You will
-            authorize and select repositories in one step on GitHub.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-between rounded-lg border p-4">
-            <div className="flex items-center gap-3">
-              <GitHubIcon className="h-8 w-8" />
-              <div>
-                <p className="text-sm font-medium">GitHub</p>
-                <p className="text-xs text-muted-foreground">
-                  Connect to access private repositories
-                </p>
-              </div>
-            </div>
+  return (
+    <div className="space-y-6">
+      {/* ── GitHub connection ── */}
+      <GitHubConnection
+        hasGitHub={hasGitHub}
+        orgs={orgs ?? null}
+        orgsLoading={orgsLoading}
+        isRefreshing={isRefreshing}
+        unlinking={unlinking}
+        onRefresh={handleRefresh}
+        onUnlink={handleUnlink}
+      />
+
+      {/* ── Future: MCP connections would go here ── */}
+      {/* <McpConnectionsSection /> */}
+    </div>
+  );
+}
+
+// ── GitHub connection block ────────────────────────────────────────────────
+
+function GitHubConnection({
+  hasGitHub,
+  orgs,
+  orgsLoading,
+  isRefreshing,
+  unlinking,
+  onRefresh,
+  onUnlink,
+}: {
+  hasGitHub: boolean;
+  orgs: OrgInstallStatus[] | null;
+  orgsLoading: boolean;
+  isRefreshing: boolean;
+  unlinking: boolean;
+  onRefresh: () => void;
+  onUnlink: () => void;
+}) {
+  const [disconnectOpen, setDisconnectOpen] = useState(false);
+  const installedCount =
+    orgs?.filter((o) => o.installStatus === "installed").length ?? 0;
+
+  return (
+    <div className="rounded-lg border border-border/50 bg-muted/10">
+      {/* Header: GitHub branding + actions */}
+      <div className="flex items-center justify-between border-b border-border/50 px-4 py-3">
+        <div className="flex items-center gap-2.5">
+          <GitHubIcon className="h-5 w-5" />
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium">GitHub</span>
+            {hasGitHub && (
+              <span className="text-xs text-muted-foreground">
+                · {installedCount}{" "}
+                {installedCount === 1 ? "account" : "accounts"} configured
+              </span>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center gap-1.5">
+          {hasGitHub && (
+            <>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onRefresh}
+                disabled={isRefreshing || orgsLoading}
+                className="h-7 w-7 p-0"
+              >
+                <RefreshCw
+                  className={`size-3.5 ${isRefreshing ? "animate-spin" : ""}`}
+                />
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={startGitHubInstallFromSettings}
+                className="h-7 text-xs"
+              >
+                Add account
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setDisconnectOpen(true)}
+                disabled={unlinking}
+                className="h-7 text-xs text-destructive hover:text-destructive"
+              >
+                {unlinking ? (
+                  <>
+                    <Loader2 className="mr-1 size-3 animate-spin" />
+                    Disconnecting…
+                  </>
+                ) : (
+                  "Disconnect"
+                )}
+              </Button>
+            </>
+          )}
+          {!hasGitHub && (
             <Button
               variant="outline"
               size="sm"
               onClick={startGitHubInstallFromSettings}
+              className="h-7 text-xs"
             >
               Connect
             </Button>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  // ── State: account linked, show org chooser ──
-  const installedCount =
-    orgs?.filter((o) => o.installStatus === "installed").length ?? 0;
-  const totalCount = orgs?.length ?? 0;
-
-  return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-start justify-between">
-          <div>
-            <CardTitle>Connected Accounts</CardTitle>
-            <CardDescription>
-              {installedCount > 0
-                ? `GitHub App installed on ${installedCount} of ${totalCount} account${totalCount !== 1 ? "s" : ""}.`
-                : "Install the GitHub App on your accounts to enable repository access."}
-            </CardDescription>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleRefresh}
-              disabled={isRefreshing || orgsLoading}
-            >
-              <RefreshCw
-                className={`size-4 ${isRefreshing ? "animate-spin" : ""}`}
-              />
-            </Button>
-          </div>
+          )}
         </div>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {orgsLoading && !orgs ? (
+      </div>
+
+      {/* Disconnect confirmation dialog */}
+      <Dialog open={disconnectOpen} onOpenChange={setDisconnectOpen}>
+        <DialogContent showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle>Disconnect GitHub?</DialogTitle>
+            <DialogDescription>
+              This will unlink your GitHub account and remove all app
+              installations. You can reconnect at any time.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button variant="outline">Cancel</Button>
+            </DialogClose>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                setDisconnectOpen(false);
+                onUnlink();
+              }}
+            >
+              Disconnect
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Body */}
+      <div className="p-4">
+        {!hasGitHub ? (
+          <p className="text-sm text-muted-foreground">
+            Connect GitHub to access private repositories and enable
+            installations for your accounts and organizations.
+          </p>
+        ) : orgsLoading && !orgs ? (
           <div className="space-y-2">
-            {[1, 2, 3].map((i) => (
+            {[1, 2].map((i) => (
               <div
                 key={i}
-                className="flex items-center justify-between rounded-lg border p-3"
+                className="flex items-center justify-between rounded-lg border border-border/50 p-3"
               >
                 <div className="flex items-center gap-3">
                   <Skeleton className="h-8 w-8 rounded-full" />
@@ -407,43 +498,18 @@ export function AccountsSection() {
             {orgs.map((org) => (
               <OrgRow key={org.login} org={org} />
             ))}
+            <RequestAccessGuidance />
           </div>
         ) : (
-          <div className="rounded-lg border p-4 text-center text-sm text-muted-foreground">
-            <p>No accounts found.</p>
+          <div className="space-y-2">
+            <p className="text-sm text-muted-foreground">
+              No accounts found. Install the GitHub App to an account or
+              organization.
+            </p>
+            <RequestAccessGuidance />
           </div>
         )}
-
-        <RequestAccessGuidance />
-
-        {/* Footer actions */}
-        <div className="flex items-center justify-between pt-1">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={startGitHubInstallFromSettings}
-          >
-            <GitHubIcon className="mr-1.5 size-3.5" />
-            Install to another account
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleUnlink}
-            disabled={unlinking}
-            className="text-muted-foreground"
-          >
-            {unlinking ? (
-              <>
-                <Loader2 className="mr-1.5 size-3.5 animate-spin" />
-                Disconnecting...
-              </>
-            ) : (
-              "Disconnect GitHub"
-            )}
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

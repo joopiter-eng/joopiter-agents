@@ -15,6 +15,7 @@ interface UsageDomainLeaderboardQueryRow {
   email: string | null;
   username: string;
   name: string | null;
+  avatarUrl: string | null;
   modelId: string | null;
   totalInputTokens: number;
   totalOutputTokens: number;
@@ -105,6 +106,7 @@ export function buildUsageDomainLeaderboardRows(
       userId: row.userId,
       username: row.username,
       name: row.name,
+      avatarUrl: row.avatarUrl,
       totalTokens: modelTokens,
       mostUsedModelId: row.modelId,
       mostUsedModelTokens: modelTokens,
@@ -142,6 +144,7 @@ export async function getUsageDomainLeaderboard(
       email: users.email,
       username: users.username,
       name: users.name,
+      avatarUrl: users.avatarUrl,
       modelId: usageEvents.modelId,
       totalInputTokens: sql<number>`coalesce(sum(${usageEvents.inputTokens}), 0)::double precision`,
       totalOutputTokens: sql<number>`coalesce(sum(${usageEvents.outputTokens}), 0)::double precision`,
@@ -154,6 +157,7 @@ export async function getUsageDomainLeaderboard(
       users.email,
       users.username,
       users.name,
+      users.avatarUrl,
       usageEvents.modelId,
     );
 

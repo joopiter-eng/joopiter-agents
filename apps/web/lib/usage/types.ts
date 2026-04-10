@@ -35,6 +35,7 @@ export interface UsageDomainLeaderboardRow {
   userId: string;
   username: string;
   name: string | null;
+  avatarUrl: string | null;
   totalTokens: number;
   mostUsedModelId: string | null;
   mostUsedModelTokens: number;

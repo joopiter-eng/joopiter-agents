@@ -14,13 +14,6 @@ import {
 import { ModelCombobox } from "@/components/model-combobox";
 import { Button } from "@/components/ui/button";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -83,19 +76,21 @@ function parseProviderOptions(
 
 export function ModelVariantsSectionSkeleton() {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Model Variants</CardTitle>
-        <CardDescription>
+    <div className="space-y-4">
+      <div className="space-y-1.5">
+        <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          Model Variants
+        </h3>
+        <p className="text-sm text-muted-foreground">
           Create named presets with provider-specific options for a base model.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
+        </p>
+      </div>
+      <div className="space-y-4">
         <Skeleton className="h-9 w-full" />
         <Skeleton className="h-9 w-full" />
         <Skeleton className="h-28 w-full" />
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
 
@@ -563,29 +558,29 @@ export function ModelVariantsSection() {
 
   return (
     <>
-      <Card>
-        <CardHeader>
-          <div className="flex items-start justify-between gap-4">
-            <div className="space-y-1.5">
-              <CardTitle>Model Variants</CardTitle>
-              <CardDescription>
-                Named presets that combine a base model with custom provider
-                options. Variants appear alongside regular models in selectors
-                across the app.
-              </CardDescription>
-            </div>
-            <Button
-              size="sm"
-              onClick={handleOpenCreate}
-              disabled={isSaving}
-              className="shrink-0"
-            >
-              <Plus className="size-3.5" />
-              New Variant
-            </Button>
+      <div className="space-y-4">
+        <div className="flex items-start justify-between gap-4">
+          <div className="space-y-1.5">
+            <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              Model Variants
+            </h3>
+            <p className="text-sm text-muted-foreground">
+              Named presets that combine a base model with custom provider
+              options. Variants appear alongside regular models in selectors
+              across the app.
+            </p>
           </div>
-        </CardHeader>
-        <CardContent>
+          <Button
+            size="sm"
+            onClick={handleOpenCreate}
+            disabled={isSaving}
+            className="shrink-0"
+          >
+            <Plus className="size-3.5" />
+            New Variant
+          </Button>
+        </div>
+        <div>
           {error && (
             <div className="mb-4 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2">
               <p className="text-xs text-destructive">{error}</p>
@@ -607,8 +602,8 @@ export function ModelVariantsSection() {
               />
             ))}
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       <VariantFormDialog
         open={dialogOpen}

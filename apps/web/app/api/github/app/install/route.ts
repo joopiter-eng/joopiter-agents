@@ -8,11 +8,11 @@ import { getServerSession } from "@/lib/session/get-server-session";
 
 function sanitizeRedirectTo(rawRedirectTo: string | null): string {
   if (!rawRedirectTo) {
-    return "/settings/accounts";
+    return "/settings/profile";
   }
 
   if (!rawRedirectTo.startsWith("/") || rawRedirectTo.startsWith("//")) {
-    return "/settings/accounts";
+    return "/settings/profile";
   }
 
   return rawRedirectTo;

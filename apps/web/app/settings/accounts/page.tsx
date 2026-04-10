@@ -1,13 +1,5 @@
-import { Suspense } from "react";
-import { AccountsSection, AccountsSectionSkeleton } from "../accounts-section";
+import { redirect } from "next/navigation";
 
 export default function AccountsPage() {
-  return (
-    <>
-      <h1 className="text-2xl font-semibold">Connected Accounts</h1>
-      <Suspense fallback={<AccountsSectionSkeleton />}>
-        <AccountsSection />
-      </Suspense>
-    </>
-  );
+  redirect("/settings/connections");
 }

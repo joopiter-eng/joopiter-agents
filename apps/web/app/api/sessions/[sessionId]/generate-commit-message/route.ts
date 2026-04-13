@@ -1,5 +1,6 @@
 import { connectSandbox } from "@open-harness/sandbox";
 import { gateway, generateText } from "ai";
+import { buildGatewayReportingProviderOptions } from "@/lib/ai-gateway-reporting";
 import { getSessionById } from "@/lib/db/sessions";
 import { isSandboxActive } from "@/lib/sandbox/utils";
 import { getServerSession } from "@/lib/session/get-server-session";
@@ -42,6 +43,10 @@ export async function POST(
 
   const result = await generateText({
     model: gateway("anthropic/claude-haiku-4.5"),
+    providerOptions: buildGatewayReportingProviderOptions({
+      userId: session.user.id,
+      userEmail: session.user.email ?? null,
+    }),
     prompt: `Generate a concise git commit message for these changes. Use conventional commit format (e.g., "feat:", "fix:", "refactor:"). One line only, max 72 characters.
 
 Session context: ${dbSession.title}

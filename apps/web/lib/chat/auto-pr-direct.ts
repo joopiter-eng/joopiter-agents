@@ -20,6 +20,7 @@ const SAFE_BRANCH_PATTERN = /^[\w\-/.]+$/;
 export interface AutoCreatePrParams {
   sandbox: Sandbox;
   userId: string;
+  userEmail?: string | null;
   sessionId: string;
   sessionTitle: string;
   repoOwner: string;
@@ -127,8 +128,15 @@ async function findExistingOpenPullRequest(params: {
 export async function performAutoCreatePr(
   params: AutoCreatePrParams,
 ): Promise<AutoCreatePrResult> {
-  const { sandbox, userId, sessionId, sessionTitle, repoOwner, repoName } =
-    params;
+  const {
+    sandbox,
+    userId,
+    userEmail,
+    sessionId,
+    sessionTitle,
+    repoOwner,
+    repoName,
+  } = params;
   const cwd = sandbox.workingDirectory;
 
   const branchResult = await sandbox.exec(
@@ -318,6 +326,8 @@ export async function performAutoCreatePr(
 
   const prContentResult = await generatePullRequestContentFromSandbox({
     sandbox,
+    userId,
+    userEmail,
     sessionId,
     sessionTitle,
     baseBranch: defaultBranch,

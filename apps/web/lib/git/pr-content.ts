@@ -4,6 +4,7 @@ import { generateText, NoObjectGeneratedError, Output } from "ai";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { getConversationContext } from "@/app/api/generate-pr/_lib/generate-pr-helpers";
+import { buildGatewayReportingProviderOptions } from "@/lib/ai-gateway-reporting";
 import { getGitHubAccount } from "@/lib/db/accounts";
 import { db } from "@/lib/db/client";
 import { getChatsBySessionId, getSessionById } from "@/lib/db/sessions";
@@ -140,6 +141,8 @@ export function appendPullRequestContextSection(
 
 export interface GeneratePullRequestContentParams {
   sandbox: Sandbox;
+  userId: string;
+  userEmail?: string | null;
   sessionId: string;
   sessionTitle: string;
   baseBranch: string;
@@ -166,7 +169,15 @@ export type GeneratePullRequestContentResult =
 export async function generatePullRequestContentFromSandbox(
   params: GeneratePullRequestContentParams,
 ): Promise<GeneratePullRequestContentResult> {
-  const { sandbox, sessionId, sessionTitle, baseBranch, branchName } = params;
+  const {
+    sandbox,
+    userId,
+    userEmail,
+    sessionId,
+    sessionTitle,
+    baseBranch,
+    branchName,
+  } = params;
   const cwd = sandbox.workingDirectory;
 
   if (!SAFE_BRANCH_PATTERN.test(baseBranch)) {
@@ -303,6 +314,10 @@ export async function generatePullRequestContentFromSandbox(
   try {
     const { output } = await generateText({
       model: gateway("anthropic/claude-haiku-4.5"),
+      providerOptions: buildGatewayReportingProviderOptions({
+        userId,
+        userEmail,
+      }),
       output: Output.object({
         schema: prContentSchema,
       }),

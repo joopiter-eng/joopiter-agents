@@ -23,6 +23,7 @@ import {
   MANAGED_TEMPLATE_TRIAL_MESSAGE_LIMIT_ERROR,
 } from "@/lib/managed-template-trial";
 import { buildActiveLifecycleUpdate } from "@/lib/sandbox/lifecycle";
+import { withGatewayReportingModelSelection } from "@/lib/ai-gateway-reporting";
 import {
   requireAuthenticatedUser,
   requireOwnedSessionChat,
@@ -166,17 +167,29 @@ export async function POST(req: Request) {
   ]);
 
   const modelVariants = getAllVariants(preferences?.modelVariants ?? []);
-  const mainModelSelection = resolveChatModelSelection({
-    selectedModelId: chat.modelId,
-    modelVariants,
-    missingVariantLabel: "Selected model variant",
-  });
+  const mainModelSelection = withGatewayReportingModelSelection(
+    resolveChatModelSelection({
+      selectedModelId: chat.modelId,
+      modelVariants,
+      missingVariantLabel: "Selected model variant",
+    }),
+    {
+      userId,
+      userEmail: session?.user.email ?? null,
+    },
+  );
   const subagentModelSelection = preferences?.defaultSubagentModelId
-    ? resolveChatModelSelection({
-        selectedModelId: preferences.defaultSubagentModelId,
-        modelVariants,
-        missingVariantLabel: "Subagent model variant",
-      })
+    ? withGatewayReportingModelSelection(
+        resolveChatModelSelection({
+          selectedModelId: preferences.defaultSubagentModelId,
+          modelVariants,
+          missingVariantLabel: "Subagent model variant",
+        }),
+        {
+          userId,
+          userEmail: session?.user.email ?? null,
+        },
+      )
     : undefined;
 
   // Determine if auto-commit and auto-PR should run after a natural finish.
@@ -195,6 +208,7 @@ export async function POST(req: Request) {
       chatId,
       sessionId,
       userId,
+      userEmail: session?.user.email ?? null,
       modelId: mainModelSelection.id,
       maxSteps: 500,
       agentOptions: {

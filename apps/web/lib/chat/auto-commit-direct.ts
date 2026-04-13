@@ -1,6 +1,7 @@
 import type { Sandbox } from "@open-harness/sandbox";
 import { generateText } from "ai";
 import { gateway } from "@open-harness/agent";
+import { buildGatewayReportingProviderOptions } from "@/lib/ai-gateway-reporting";
 import { getGitHubAccount } from "@/lib/db/accounts";
 import { getRepoToken } from "@/lib/github/get-repo-token";
 import { buildGitHubAuthRemoteUrl } from "@/lib/github/repo-identifiers";
@@ -8,6 +9,7 @@ import { buildGitHubAuthRemoteUrl } from "@/lib/github/repo-identifiers";
 export interface AutoCommitParams {
   sandbox: Sandbox;
   userId: string;
+  userEmail?: string | null;
   sessionId: string;
   sessionTitle: string;
   repoOwner: string;
@@ -29,7 +31,8 @@ export interface AutoCommitResult {
 export async function performAutoCommit(
   params: AutoCommitParams,
 ): Promise<AutoCommitResult> {
-  const { sandbox, userId, sessionTitle, repoOwner, repoName } = params;
+  const { sandbox, userId, userEmail, sessionTitle, repoOwner, repoName } =
+    params;
   const cwd = sandbox.workingDirectory;
 
   // 1. Check for uncommitted changes
@@ -70,18 +73,24 @@ export async function performAutoCommit(
   }
 
   // 4. Generate commit message
-  const commitMessage = await generateCommitMessage(sandbox, cwd, sessionTitle);
+  const commitMessage = await generateCommitMessage({
+    sandbox,
+    cwd,
+    sessionTitle,
+    userId,
+    userEmail,
+  });
 
   // 5. Set git author identity
   const githubAccount = await getGitHubAccount(userId);
   if (githubAccount?.externalUserId && githubAccount.username) {
-    const userEmail = `${githubAccount.externalUserId}+${githubAccount.username}@users.noreply.github.com`;
+    const githubUserEmail = `${githubAccount.externalUserId}+${githubAccount.username}@users.noreply.github.com`;
     await sandbox.exec(
       `git config user.name '${githubAccount.username.replace(/'/g, "'\\''")}'`,
       cwd,
       5000,
     );
-    await sandbox.exec(`git config user.email '${userEmail}'`, cwd, 5000);
+    await sandbox.exec(`git config user.email '${githubUserEmail}'`, cwd, 5000);
   }
 
   // 6. Commit
@@ -142,11 +151,14 @@ export async function performAutoCommit(
   };
 }
 
-async function generateCommitMessage(
-  sandbox: Sandbox,
-  cwd: string,
-  sessionTitle: string,
-): Promise<string> {
+async function generateCommitMessage(params: {
+  sandbox: Sandbox;
+  cwd: string;
+  sessionTitle: string;
+  userId: string;
+  userEmail?: string | null;
+}): Promise<string> {
+  const { sandbox, cwd, sessionTitle, userId, userEmail } = params;
   const fallback = "chore: update repository changes";
 
   try {
@@ -163,6 +175,10 @@ async function generateCommitMessage(
 
     const result = await generateText({
       model: gateway("anthropic/claude-haiku-4.5"),
+      providerOptions: buildGatewayReportingProviderOptions({
+        userId,
+        userEmail,
+      }),
       prompt: `Generate a concise git commit message for these changes. Use conventional commit format (e.g., "feat:", "fix:", "refactor:"). One line only, max 72 characters.
 
 Session context: ${sessionTitle}

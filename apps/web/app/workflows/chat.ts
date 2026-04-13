@@ -41,6 +41,7 @@ type Options = {
   chatId: string;
   sessionId: string;
   userId: string;
+  userEmail?: string | null;
   modelId: string;
   agentOptions: OpenHarnessAgentCallOptions;
   maxSteps?: number;
@@ -608,6 +609,7 @@ export async function runAgentWorkflow(options: Options) {
       autoCommitResult = hasAutoCommitChanges
         ? await runAutoCommitStep({
             userId: options.userId,
+            userEmail: options.userEmail,
             sessionId: options.sessionId,
             sessionTitle: options.sessionTitle ?? "",
             repoOwner,
@@ -654,6 +656,7 @@ export async function runAgentWorkflow(options: Options) {
 
         const autoPrResult = await runAutoCreatePrStep({
           userId: options.userId,
+          userEmail: options.userEmail,
           sessionId: options.sessionId,
           sessionTitle: options.sessionTitle ?? "",
           repoOwner,

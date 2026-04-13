@@ -15,6 +15,7 @@ import { getGitHubAccount } from "@/lib/db/accounts";
 import { getSessionById, updateSession } from "@/lib/db/sessions";
 import { getRepoToken } from "@/lib/github/get-repo-token";
 import { buildGitHubAuthRemoteUrl } from "@/lib/github/repo-identifiers";
+import { buildGatewayReportingProviderOptions } from "@/lib/ai-gateway-reporting";
 import { generatePullRequestContentFromSandbox } from "@/lib/git/pr-content";
 import { getUserGitHubToken } from "@/lib/github/user-token";
 import { isSandboxActive } from "@/lib/sandbox/utils";
@@ -317,6 +318,10 @@ export async function POST(req: Request) {
     } else if (diffForCommit.trim()) {
       const commitMsgResult = await generateText({
         model: gateway("anthropic/claude-haiku-4.5"),
+        providerOptions: buildGatewayReportingProviderOptions({
+          userId: session.user.id,
+          userEmail: session.user.email ?? null,
+        }),
         prompt: `Generate a concise git commit message for these changes. Use conventional commit format (e.g., "feat:", "fix:", "refactor:"). One line only, max 72 characters.
 
 Session context: ${sessionTitle}
@@ -674,6 +679,8 @@ Respond with ONLY the commit message, nothing else.`,
 
   const prContentResult = await generatePullRequestContentFromSandbox({
     sandbox,
+    userId: session.user.id,
+    userEmail: session.user.email ?? null,
     sessionId,
     sessionTitle,
     baseBranch,

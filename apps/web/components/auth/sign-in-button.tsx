@@ -70,11 +70,7 @@ export function SignInButton({
       disabled={disabled || isLoading}
       onClick={handleSignIn}
     >
-      {isLoading ? (
-        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-      ) : (
-        <VercelIcon className="mr-2 h-4 w-4" />
-      )}
+      {isLoading ? <Loader2 className="animate-spin" /> : <VercelIcon />}
       {isLoading ? "Signing in..." : "Sign in with Vercel"}
     </Button>
   );

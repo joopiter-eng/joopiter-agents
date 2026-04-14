@@ -12,7 +12,7 @@ import {
   Zap,
 } from "lucide-react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSelectedLayoutSegments } from "next/navigation";
 import { useState } from "react";
 import { AuthGuard } from "@/components/auth/auth-guard";
 import {
@@ -26,6 +26,7 @@ import { cn } from "@/lib/utils";
 import { AccountsSectionSkeleton } from "./accounts-section";
 import { LeaderboardSectionSkeleton } from "./leaderboard-section";
 import { ModelVariantsSectionSkeleton } from "./model-variants-section";
+import { AutomationDetailSkeleton } from "./automations/automation-detail-skeleton";
 import { PreferencesSectionSkeleton } from "./preferences-section";
 
 /** Skeleton shown while auth is loading for the combined profile page */
@@ -73,32 +74,6 @@ function AutomationsListSkeleton() {
               <Skeleton className="h-4 w-48" />
               <Skeleton className="h-3 w-32" />
             </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function AutomationsDetailSkeleton() {
-  return (
-    <div className="space-y-6">
-      <Skeleton className="h-4 w-40" />
-      <div className="flex items-center justify-between">
-        <div className="space-y-2">
-          <Skeleton className="h-8 w-64" />
-          <Skeleton className="h-4 w-40" />
-        </div>
-        <div className="flex gap-2">
-          <Skeleton className="h-9 w-24" />
-          <Skeleton className="h-9 w-9" />
-        </div>
-      </div>
-      <div className="space-y-3">
-        {[1, 2, 3].map((i) => (
-          <div key={i} className="space-y-1">
-            <Skeleton className="h-3 w-20" />
-            <Skeleton className="h-4 w-48" />
           </div>
         ))}
       </div>
@@ -284,17 +259,20 @@ function SettingsLayout({
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const segments = useSelectedLayoutSegments();
   const activeItem = sidebarItems.find(
     (item) => pathname === item.href || pathname.startsWith(item.href + "/"),
   );
   const isAutomationDetail =
-    pathname.startsWith("/settings/automations/") &&
-    pathname !== "/settings/automations/new";
+    segments[0] === "automations" &&
+    typeof segments[1] === "string" &&
+    segments[1] !== "new";
+  const showFallbackTitle = !isAutomationDetail;
   const fallbackTitle = isAutomationDetail
     ? "Automation"
     : (activeItem?.label ?? "Profile");
   const fallbackContent = isAutomationDetail ? (
-    <AutomationsDetailSkeleton />
+    <AutomationDetailSkeleton />
   ) : activeItem?.id === "automations" ? (
     <AutomationsListSkeleton />
   ) : activeItem?.id === "connections" ? (
@@ -313,7 +291,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     <AuthGuard
       loadingFallback={
         <SettingsLayout pathname={pathname}>
-          <h1 className="text-2xl font-semibold">{fallbackTitle}</h1>
+          {showFallbackTitle ? (
+            <h1 className="text-2xl font-semibold">{fallbackTitle}</h1>
+          ) : null}
           {fallbackContent}
         </SettingsLayout>
       }

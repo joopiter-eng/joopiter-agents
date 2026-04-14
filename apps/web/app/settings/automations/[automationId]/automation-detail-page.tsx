@@ -12,6 +12,7 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
+import { AutomationDetailSkeleton } from "../automation-detail-skeleton";
 import { AutomationForm } from "../automation-form";
 import {
   useAutomationDetail,
@@ -25,7 +26,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -75,23 +75,6 @@ function formatRunTime(value: string | null) {
   return value ? new Date(value).toLocaleString() : "Not available";
 }
 
-function getRunStatusBorderColor(status: string) {
-  switch (status) {
-    case "completed":
-      return "border-l-emerald-500";
-    case "running":
-    case "queued":
-      return "border-l-blue-500";
-    case "needs_attention":
-      return "border-l-amber-500";
-    case "failed":
-    case "cancelled":
-      return "border-l-red-500";
-    default:
-      return "border-l-border";
-  }
-}
-
 function getRunStatusDotColor(status: string) {
   switch (status) {
     case "completed":
@@ -108,31 +91,6 @@ function getRunStatusDotColor(status: string) {
     default:
       return "bg-zinc-400";
   }
-}
-
-function DetailSkeleton() {
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="space-y-2">
-          <Skeleton className="h-8 w-64" />
-          <Skeleton className="h-4 w-40" />
-        </div>
-        <div className="flex gap-2">
-          <Skeleton className="h-9 w-24" />
-          <Skeleton className="h-9 w-20" />
-        </div>
-      </div>
-      <div className="space-y-3">
-        {[1, 2, 3, 4].map((i) => (
-          <div key={i} className="flex items-center justify-between">
-            <Skeleton className="h-4 w-24" />
-            <Skeleton className="h-4 w-40" />
-          </div>
-        ))}
-      </div>
-    </div>
-  );
 }
 
 function formatShortDate(value: string | null) {
@@ -187,7 +145,7 @@ export function AutomationDetailPage({
   }, [automation?.nextRunAt, cronConfig]);
 
   if (isLoading) {
-    return <DetailSkeleton />;
+    return <AutomationDetailSkeleton />;
   }
 
   if (!automation) {

@@ -2,8 +2,8 @@
 
 import { useCallback, useState } from "react";
 import Image from "next/image";
-import useSWR, { useSWRConfig } from "swr";
-import { ChevronDown, DollarSign, Loader2 } from "lucide-react";
+import useSWR from "swr";
+import { ChevronDown, DollarSign } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,7 +12,6 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useSession } from "@/hooks/use-session";
 import { fetcher } from "@/lib/swr";
 
 interface VercelTeam {
@@ -84,9 +83,7 @@ function CreditsBadge({ teamId }: { teamId: string }) {
   return (
     <div className="flex items-center gap-1.5 rounded-md bg-muted/50 px-2 py-1">
       <DollarSign className="size-3 text-muted-foreground" />
-      <span className="font-mono text-xs text-muted-foreground">
-        {display}
-      </span>
+      <span className="font-mono text-xs text-muted-foreground">{display}</span>
     </div>
   );
 }
@@ -113,7 +110,6 @@ export function VercelSectionSkeleton() {
 }
 
 export function VercelSection() {
-  const { session } = useSession();
   const [isSwitching, setIsSwitching] = useState(false);
 
   const { data: teamsData } = useSWR<TeamsResponse>(
@@ -121,8 +117,10 @@ export function VercelSection() {
     fetcher,
   );
 
-  const { data: statusData, mutate: mutateStatus } =
-    useSWR<OnboardingStatus>("/api/onboarding/status", fetcher);
+  const { data: statusData, mutate: mutateStatus } = useSWR<OnboardingStatus>(
+    "/api/onboarding/status",
+    fetcher,
+  );
 
   const teams = teamsData?.teams ?? [];
   const currentTeamId = statusData?.teamId ?? null;
@@ -141,8 +139,7 @@ export function VercelSection() {
         if (!res.ok) {
           const errorData = await res.json().catch(() => ({}));
           throw new Error(
-            (errorData as { error?: string }).error ||
-              "Failed to update team",
+            (errorData as { error?: string }).error || "Failed to update team",
           );
         }
 
@@ -178,12 +175,10 @@ export function VercelSection() {
 
         {/* Team display */}
         <div className="p-4">
-          <p className="mb-1 text-xs font-medium text-muted-foreground">
-            Team
-          </p>
+          <p className="mb-1 text-xs font-medium text-muted-foreground">Team</p>
           <p className="mb-3 text-xs text-muted-foreground/70">
-            All token usage is billed through the selected Vercel team using
-            an AI Gateway API key.
+            All token usage is billed through the selected Vercel team using an
+            AI Gateway API key.
           </p>
           {isSwitching ? (
             <div className="flex items-center justify-between">
@@ -206,9 +201,7 @@ export function VercelSection() {
                       className="size-10 rounded-full bg-muted"
                     />
                     <div className="flex items-center gap-2.5">
-                      <p className="text-sm font-medium">
-                        {currentTeam.name}
-                      </p>
+                      <p className="text-sm font-medium">{currentTeam.name}</p>
                       <CreditsBadge teamId={currentTeam.id} />
                     </div>
                   </>

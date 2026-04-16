@@ -16,6 +16,11 @@ import {
 } from "@/lib/db/sessions";
 import { getUserPreferences } from "@/lib/db/user-preferences";
 import { getUserGatewayConfig } from "@/lib/vercel/gateway-key";
+import {
+  filterModelVariantsForSession,
+  sanitizeSelectedModelIdForSession,
+  sanitizeUserPreferencesForSession,
+} from "@/lib/model-access";
 import { getAllVariants } from "@/lib/model-variants";
 import { createCancelableReadableStream } from "@/lib/chat/create-cancelable-readable-stream";
 import { assistantFileLinkPrompt } from "@/lib/assistant-file-links";
@@ -172,21 +177,43 @@ export async function POST(req: Request) {
     return null;
   });
 
-  const [{ sandbox, skills }, preferences, gatewayConfig] = await Promise.all([
-    runtimePromise,
-    preferencesPromise,
-    gatewayConfigPromise,
-  ]);
+  const [{ sandbox, skills }, rawPreferences, gatewayConfig] =
+    await Promise.all([
+      runtimePromise,
+      preferencesPromise,
+      gatewayConfigPromise,
+    ]);
 
-  const modelVariants = getAllVariants(preferences?.modelVariants ?? []);
+  const preferences = rawPreferences
+    ? sanitizeUserPreferencesForSession(rawPreferences, session, req.url)
+    : null;
+  const modelVariants = filterModelVariantsForSession(
+    getAllVariants(preferences?.modelVariants ?? []),
+    session,
+    req.url,
+  );
+  const selectedModelId =
+    sanitizeSelectedModelIdForSession(
+      chat.modelId,
+      modelVariants,
+      session,
+      req.url,
+    ) ??
+    chat.modelId ??
+    null;
   const mainModelSelection = resolveChatModelSelection({
-    selectedModelId: chat.modelId,
+    selectedModelId,
     modelVariants,
     missingVariantLabel: "Selected model variant",
   });
   const subagentModelSelection = preferences?.defaultSubagentModelId
     ? resolveChatModelSelection({
-        selectedModelId: preferences.defaultSubagentModelId,
+        selectedModelId: sanitizeSelectedModelIdForSession(
+          preferences.defaultSubagentModelId,
+          modelVariants,
+          session,
+          req.url,
+        ),
         modelVariants,
         missingVariantLabel: "Subagent model variant",
       })
@@ -208,6 +235,7 @@ export async function POST(req: Request) {
       chatId,
       sessionId,
       userId,
+      selectedModelId: selectedModelId ?? mainModelSelection.id,
       modelId: mainModelSelection.id,
       maxSteps: 500,
       agentOptions: {
@@ -374,8 +402,8 @@ async function persistLatestUserMessage(
 
     if (textContent.length > 0) {
       const title =
-        textContent.length > 30
-          ? `${textContent.slice(0, 30)}...`
+        textContent.length > 80
+          ? `${textContent.slice(0, 80)}...`
           : textContent;
       await updateChat(chatId, { title });
     }

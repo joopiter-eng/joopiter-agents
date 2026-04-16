@@ -45,9 +45,7 @@ const callOptionsSchema = z.object({
   customInstructions: z.string().optional(),
   skills: z.custom<SkillMetadata[]>().optional(),
   /** When set, routes AI Gateway calls through the user's team billing. */
-  gatewayConfig: z
-    .custom<import("./models").GatewayConfig>()
-    .optional(),
+  gatewayConfig: z.custom<import("./models").GatewayConfig>().optional(),
 });
 
 export type OpenHarnessAgentCallOptions = z.infer<typeof callOptionsSchema>;

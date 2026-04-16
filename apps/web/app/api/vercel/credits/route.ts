@@ -29,7 +29,12 @@ export async function GET() {
   try {
     // TODO: remove after debugging credits display
     const apiKey = decrypt(row.gatewayApiKey);
-    console.log("[credits] Using key prefix:", apiKey.substring(0, 10) + "...", "for team:", row.teamId);
+    console.log(
+      "[credits] Using key prefix:",
+      apiKey.substring(0, 10) + "...",
+      "for team:",
+      row.teamId,
+    );
 
     const response = await fetch("https://ai-gateway.vercel.sh/v1/credits", {
       headers: {
@@ -55,9 +60,6 @@ export async function GET() {
     return Response.json(data);
   } catch (error) {
     console.error("Failed to fetch gateway credits:", error);
-    return Response.json(
-      { error: "Failed to fetch credits" },
-      { status: 500 },
-    );
+    return Response.json({ error: "Failed to fetch credits" }, { status: 500 });
   }
 }

@@ -3,15 +3,12 @@
 import {
   AlertCircle,
   Ban,
-  Check,
   ChevronDown,
   ExternalLink,
   Globe,
   ListFilter,
   Loader2,
   RefreshCw,
-  TriangleAlert,
-  X,
 } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -359,21 +356,21 @@ export function AccountsSection() {
               <GitHubIcon className="h-5 w-5" />
               <span className="text-sm font-medium">GitHub</span>
             </div>
-          {hasGitHub && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleRefresh}
-              disabled={
-                isRefreshing || connectionLoading || connectionStatusLoading
-              }
-              className="h-7 w-7 p-0"
-            >
-              <RefreshCw
-                className={`size-3.5 ${isRefreshing ? "animate-spin" : ""}`}
-              />
-            </Button>
-          )}
+            {hasGitHub && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleRefresh}
+                disabled={
+                  isRefreshing || connectionLoading || connectionStatusLoading
+                }
+                className="h-7 w-7 p-0"
+              >
+                <RefreshCw
+                  className={`size-3.5 ${isRefreshing ? "animate-spin" : ""}`}
+                />
+              </Button>
+            )}
           </div>
           <p className="mt-2 text-xs text-muted-foreground">
             Open Agents uses a GitHub App to access your repositories

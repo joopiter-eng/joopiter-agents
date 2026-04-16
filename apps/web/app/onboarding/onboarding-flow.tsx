@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import Image from "next/image";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import useSWR from "swr";
 import { Check, Github, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -64,17 +65,11 @@ function OpenAgentsLogo({ className }: { className?: string }) {
 export function OnboardingFlow() {
   const router = useRouter();
   const [activeStep, setActiveStep] = useState<StepId>(1);
-  const [completedSteps, setCompletedSteps] = useState<Set<StepId>>(
-    new Set(),
-  );
+  const [completedSteps, setCompletedSteps] = useState<Set<StepId>>(new Set());
   const [isCompleting, setIsCompleting] = useState(false);
 
   const markComplete = useCallback((step: StepId) => {
-    setCompletedSteps((prev) => {
-      const next = new Set(prev);
-      next.add(step);
-      return next;
-    });
+    setCompletedSteps((prev) => new Set([...prev, step]));
     if (step < 3) {
       setActiveStep((step + 1) as StepId);
     }
@@ -173,7 +168,10 @@ export function OnboardingFlow() {
                       {step.title}
                     </span>
                     {isCompleted && (
-                      <Check className="ml-auto size-4 text-white" strokeWidth={2.5} />
+                      <Check
+                        className="ml-auto size-4 text-white"
+                        strokeWidth={2.5}
+                      />
                     )}
                   </button>
 
@@ -193,15 +191,11 @@ export function OnboardingFlow() {
                               All token usage is billed through the selected
                               Vercel team using an AI Gateway API key.
                             </p>
-                            <TeamSelector
-                              onComplete={() => markComplete(1)}
-                            />
+                            <TeamSelector onComplete={() => markComplete(1)} />
                           </>
                         )}
                         {step.id === 2 && (
-                          <GitHubConnector
-                            onComplete={() => markComplete(2)}
-                          />
+                          <GitHubConnector onComplete={() => markComplete(2)} />
                         )}
                         {step.id === 3 && (
                           <ModelSelector
@@ -216,8 +210,6 @@ export function OnboardingFlow() {
               );
             })}
           </div>
-
-
         </div>
       </div>
     </div>
@@ -297,7 +289,6 @@ function TeamSelector({ onComplete }: { onComplete: () => void }) {
             alt=""
             width={32}
             height={32}
-
             className="size-8 rounded-full bg-zinc-800"
           />
           <p className="text-sm font-medium text-zinc-200">
@@ -338,7 +329,6 @@ function TeamSelector({ onComplete }: { onComplete: () => void }) {
               alt=""
               width={24}
               height={24}
-  
               className="size-6 rounded-full bg-zinc-800"
             />
             <span className="min-w-0 flex-1 truncate text-sm text-zinc-200">
@@ -385,7 +375,6 @@ function GitHubConnector({ onComplete }: { onComplete: () => void }) {
                 alt=""
                 width={32}
                 height={32}
-    
                 className="size-8 rounded-full bg-zinc-800"
               />
             ) : (
@@ -426,15 +415,16 @@ function GitHubConnector({ onComplete }: { onComplete: () => void }) {
   // Connect / reconnect state
   return (
     <div className="space-y-3">
-      <a href="/api/auth/github/reconnect?next=/onboarding">
-        <Button
-          variant="outline"
-          className="gap-2 border-zinc-700 bg-transparent text-zinc-300 hover:bg-white/5 hover:text-white"
-        >
+      <Button
+        asChild
+        variant="outline"
+        className="gap-2 border-zinc-700 bg-transparent text-zinc-300 hover:bg-white/5 hover:text-white"
+      >
+        <Link href="/api/auth/github/reconnect?next=/onboarding">
           <Github className="size-4" />
           {isConnected ? "Reconnect GitHub" : "Connect GitHub"}
-        </Button>
-      </a>
+        </Link>
+      </Button>
       {isConnected && (
         <button
           type="button"
@@ -467,8 +457,11 @@ function ModelSelector({
   isCompleting: boolean;
 }) {
   const { modelOptions, loading: modelsLoading } = useModelOptions();
-  const { preferences, loading: prefsLoading, updatePreferences } =
-    useUserPreferences();
+  const {
+    preferences,
+    loading: prefsLoading,
+    updatePreferences,
+  } = useUserPreferences();
   const [isSaving, setIsSaving] = useState(false);
 
   const defaultId = useMemo(

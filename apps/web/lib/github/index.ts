@@ -54,11 +54,7 @@ export { listUserInstallationRepositories } from "./installation-repos";
 // ---------------------------------------------------------------------------
 
 /** Low-level GitHub REST API helpers (user info, orgs, branches). */
-export {
-  fetchGitHubUser,
-  fetchGitHubOrgs,
-  fetchGitHubBranches,
-} from "./api";
+export { fetchGitHubUser, fetchGitHubOrgs, fetchGitHubBranches } from "./api";
 
 // ---------------------------------------------------------------------------
 // Octokit Client (PR, Repo, Deployment operations)
@@ -95,5 +91,3 @@ export {
   isValidGitHubRepoName,
   buildGitHubAuthRemoteUrl,
 } from "./repo-identifiers";
-
-

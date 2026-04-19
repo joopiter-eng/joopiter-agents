@@ -1128,20 +1128,28 @@ export function SessionChatContent({
   const {
     state: recordingState,
     error: recordingError,
+    transcript: recordingTranscript,
     clearError: clearRecordingError,
+    clearTranscript: clearRecordingTranscript,
     toggleRecording,
   } = useAudioRecording();
 
   const handleMicClick = async () => {
     clearRecordingError();
-    const transcribedText = await toggleRecording();
-    if (transcribedText) {
-      setInput((prev) =>
-        prev ? `${prev} ${transcribedText}` : transcribedText,
-      );
-      inputRef.current?.focus();
-    }
+    await toggleRecording();
   };
+
+  useEffect(() => {
+    if (!recordingTranscript) {
+      return;
+    }
+
+    setInput((prev) =>
+      prev ? `${prev} ${recordingTranscript}` : recordingTranscript,
+    );
+    inputRef.current?.focus();
+    clearRecordingTranscript();
+  }, [recordingTranscript, clearRecordingTranscript]);
 
   const handleCopyAssistantMessage = useCallback(
     async (messageId: string, text: string) => {

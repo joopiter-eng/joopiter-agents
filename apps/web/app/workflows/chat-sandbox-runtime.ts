@@ -8,7 +8,8 @@ import type { UIMessageChunk } from "ai";
 import { getWritable } from "workflow";
 import type { WebAgentWorkspaceStatusData } from "@/app/types";
 import { getSessionById, updateSession } from "@/lib/db/sessions";
-import { getGitHubUserProfile, getUserGitHubToken } from "@/lib/github/token";
+import { getUserGitHubToken } from "@/lib/github/token";
+import { getGitHubUserProfile } from "@/lib/github/users";
 import {
   buildActiveLifecycleUpdate,
   getNextLifecycleVersion,

@@ -54,13 +54,17 @@ Key findings:
 - [x] GitHub App installed on `joopiter-eng/joopiter-agents` (the fork itself, used as the test repo). User OAuth account linked, install visible in app UI.
 - [x] **Local agent run end-to-end.** Sandbox provisioned (Vercel sandbox, Philadelphia region), repo cloned, agent listed top-level files, returned 2-sentence project summary. Cost: $0.027 on GPT 5.4 (upstream default). Workflow SDK + Vercel sandbox + AI Gateway path all verified working from local dev.
 
-## Phase 5 — Vercel deployment (TODO)
+## Phase 5 — Vercel deployment ✅ (2026-04-29)
 
-- [ ] `vercel link` from local
-- [ ] Push env vars to Vercel project (Production scope first)
-- [ ] First deploy to get production URL
-- [ ] Update GitHub App callback URLs with production URL, redeploy
-- [ ] Confirm prod migrations ran, auth works on prod
+- [x] Merged `setup` → `main`; pushed `joopiter-eng/joopiter-agents` (origin).
+- [x] Added `vercel.json` with `framework=nextjs`, `buildCommand=bun run build` (so migrations run via `apps/web/package.json`'s build script: `db:migrate:apply && next build`), `installCommand=bun install --frozen-lockfile`.
+- [x] **Project setting in dashboard:** Root Directory = `apps/web` (required — `next` is in workspace package.json, not the root). Output directory was initially set in `vercel.json` but had to be removed once root dir was set (would resolve to `apps/web/apps/web/.next`). Vercel default works once Root Directory is set.
+- [x] Vercel CLI was outdated (41.7.8); endpoint required ≥47.2.2. Brew/npm install hit disk-space + esbuild postinstall hang; resolved with `npm i -g vercel@latest --ignore-scripts`. **Note for future sessions:** invoke as `node ~/.npm-global/lib/node_modules/vercel/dist/vc.js` since the `vercel` shebang invocation hung in this environment.
+- [x] Preview deploy READY at unique URL. Confirmed migrations + Next build flow.
+- [x] Promoted to **production**: `https://joopiter-agents.vercel.app`. Public URL (no SSO).
+- [x] Vercel OAuth app callback URLs updated. **Gotcha:** the redirect-URL row's "project" dropdown defaults to a Vercel project, which causes the literal-URL match to fail. Setting that dropdown to **"Custom Domain"** for `https://joopiter-agents.vercel.app/api/auth/callback/vercel` fixed `App configuration error`. **Worth flagging in upstream deploy docs.**
+- [x] GitHub App callback URLs updated with prod domain; webhook re-enabled at `https://joopiter-agents.vercel.app/api/github/webhook`.
+- [x] **Sign-in on prod verified** — Vercel sign-in works, GitHub link works, App is installed on `joopiter-eng`. Users + accounts + sessions present in prod DB (implicit from successful sign-in).
 
 ## Phase 6 — End-to-end agent run (TODO)
 

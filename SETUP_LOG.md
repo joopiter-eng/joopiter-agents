@@ -42,12 +42,15 @@ Key findings:
 - [x] GitHub App: created at `joopiter-eng` org. **Webhook is currently inactive** (GitHub rejects localhost URLs); will re-enable with prod URL after first deploy. All 6 env vars (App ID, Client ID, Client Secret, Slug, Webhook Secret, base64-encoded Private Key) in `.env.local` and pushed to all 3 Vercel envs. Local `.pem` file at `~/Downloads/joopiter-agents.2026-04-28.private-key.pem` — can be deleted now that the value is stored in env vars.
 - [ ] (Optional) Upstash Redis or Vercel KV — skipping for first pass
 
-## Phase 4 — Local validation (TODO)
+## Phase 4 — Local validation (in progress)
 
-- [ ] `bun run web` boots
-- [ ] Auth (Vercel sign-in) works locally
-- [ ] DB migrations applied
-- [ ] One agent session starts locally end-to-end
+- [x] `bun run --cwd apps/web db:check` clean (migrations match schema).
+- [x] Migrations applied to Neon dev branch (`bun run db:migrate:apply`). 15 public-schema tables created.
+- [x] `bun run web` boots — Next 16.2.1 + Turbopack, ready in ~340ms. Workspace-root warning about multiple lockfiles is cosmetic.
+- [x] **Bug found and patched in upstream auth config.** `apps/web/lib/auth/config.ts` declared `additionalFields.username = { required: true }` and `users.username NOT NULL` but provided no `mapProfileToUser` or default — fresh OAuth signup failed with `unable_to_create_user` because the insert tried to set username to `DEFAULT`. Patched by adding a `deriveUsername(profile, preferredKeys)` helper and `mapProfileToUser` for both Vercel (`preferred_username` / `username` / `name`) and GitHub (`login` / `name`), with email-localpart fallback and `user_<nanoid>` last-resort. Worth contributing back upstream.
+- [x] Vercel OAuth sign-in verified end-to-end. 1 user / 1 account / 1 session in DB. Callback returned 302; `/sessions` page loaded.
+- [ ] GitHub App install on a test repo
+- [ ] Local agent run (chat session, sandbox boot, simple prompt)
 
 ## Phase 5 — Vercel deployment (TODO)
 

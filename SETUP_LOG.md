@@ -32,15 +32,15 @@ Key findings:
 - Created `SETUP_LOG.md` (this file).
 - Working branch: `setup` (off `main`).
 
-## Phase 3 — Infrastructure provisioning (TODO)
+## Phase 3 — Infrastructure provisioning ✅ (2026-04-29)
 
-Will create, with confirmation before each:
-- [ ] Neon Postgres database (via Vercel integration, once Vercel project exists)
-- [ ] Vercel project for the app (links to Neon + AI Gateway via OIDC)
-- [ ] Vercel OAuth app (sign-in) — needs prod URL, so this comes *after* first deploy
-- [ ] GitHub App — same chicken-and-egg; create with localhost URLs first, update after Vercel deploy
-- [ ] (Optional) Upstash Redis or Vercel KV
-- [ ] AI Gateway API key for local dev
+- [x] Vercel project: `joopiter/joopiter-agents` linked via `vercel link --scope=joopiter`. `projectId=prj_oZqMRb7Ei...`. `.vercel/` is gitignored. **Note:** Vercel didn't auto-detect the monorepo; root-directory / build-command settings need adjusting before first deploy.
+- [x] Neon Postgres via Vercel Marketplace integration. 16 env vars injected (`POSTGRES_URL`, `POSTGRES_URL_NON_POOLING`, etc.) into Production+Preview+Development. Auto-branched preview DBs enabled. `POSTGRES_URL` pulled into local `.env.local` for dev.
+- [x] `BETTER_AUTH_SECRET` + `ENCRYPTION_KEY` generated locally (in `.env.local`) and a *different* set generated for Vercel (all 3 envs). All six entries verified present via `vercel env ls`.
+- [x] Vercel AI Gateway API key created and saved to `.env.local` (length 60, `vck_` prefix). Used for local dev only — Vercel deploys auth via OIDC.
+- [x] Vercel OAuth app: created in Joopiter team Settings → Apps. Localhost callback configured. Client ID + Secret in `.env.local` and pushed to all 3 Vercel envs.
+- [x] GitHub App: created at `joopiter-eng` org. **Webhook is currently inactive** (GitHub rejects localhost URLs); will re-enable with prod URL after first deploy. All 6 env vars (App ID, Client ID, Client Secret, Slug, Webhook Secret, base64-encoded Private Key) in `.env.local` and pushed to all 3 Vercel envs. Local `.pem` file at `~/Downloads/joopiter-agents.2026-04-28.private-key.pem` — can be deleted now that the value is stored in env vars.
+- [ ] (Optional) Upstash Redis or Vercel KV — skipping for first pass
 
 ## Phase 4 — Local validation (TODO)
 

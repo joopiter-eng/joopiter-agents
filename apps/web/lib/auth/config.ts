@@ -33,6 +33,28 @@ function getWildcardHostPattern(host: string): string | null {
   return `*.${host}`;
 }
 
+function deriveUsername(
+  profile: Record<string, unknown>,
+  preferredKeys: string[],
+): string {
+  for (const key of preferredKeys) {
+    const value = profile[key];
+    if (typeof value === "string" && value.trim().length > 0) {
+      return value.trim();
+    }
+  }
+
+  const email = profile.email;
+  if (typeof email === "string") {
+    const localPart = email.split("@")[0]?.trim();
+    if (localPart && localPart.length > 0) {
+      return localPart;
+    }
+  }
+
+  return `user_${nanoid(8)}`;
+}
+
 function getAuthBaseURLFallback(): string | undefined {
   return (
     process.env.BETTER_AUTH_URL ??
@@ -115,10 +137,23 @@ export const auth = betterAuth({
       clientSecret: process.env.VERCEL_APP_CLIENT_SECRET ?? "",
       scope: ["openid", "email", "profile", "offline_access"],
       overrideUserInfoOnSignIn: true,
+      mapProfileToUser: (profile) => ({
+        username: deriveUsername(profile as unknown as Record<string, unknown>, [
+          "preferred_username",
+          "username",
+          "name",
+        ]),
+      }),
     },
     github: {
       clientId: process.env.NEXT_PUBLIC_GITHUB_CLIENT_ID ?? "",
       clientSecret: process.env.GITHUB_CLIENT_SECRET ?? "",
+      mapProfileToUser: (profile) => ({
+        username: deriveUsername(profile as unknown as Record<string, unknown>, [
+          "login",
+          "name",
+        ]),
+      }),
     },
   },
 

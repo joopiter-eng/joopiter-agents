@@ -49,8 +49,10 @@ Key findings:
 - [x] `bun run web` boots — Next 16.2.1 + Turbopack, ready in ~340ms. Workspace-root warning about multiple lockfiles is cosmetic.
 - [x] **Bug found and patched in upstream auth config.** `apps/web/lib/auth/config.ts` declared `additionalFields.username = { required: true }` and `users.username NOT NULL` but provided no `mapProfileToUser` or default — fresh OAuth signup failed with `unable_to_create_user` because the insert tried to set username to `DEFAULT`. Patched by adding a `deriveUsername(profile, preferredKeys)` helper and `mapProfileToUser` for both Vercel (`preferred_username` / `username` / `name`) and GitHub (`login` / `name`), with email-localpart fallback and `user_<nanoid>` last-resort. Worth contributing back upstream.
 - [x] Vercel OAuth sign-in verified end-to-end. 1 user / 1 account / 1 session in DB. Callback returned 302; `/sessions` page loaded.
-- [ ] GitHub App install on a test repo
-- [ ] Local agent run (chat session, sandbox boot, simple prompt)
+- [x] **Bug found.** Server-internal `auth.api.*` calls (e.g. GitHub post-link token fetch) emitted `Dynamic baseURL could not be resolved` on local dev because neither `BETTER_AUTH_URL` nor `VERCEL_URL` was set. Fixed by adding `BETTER_AUTH_URL=http://localhost:3000` to `.env.local`. Not needed on Vercel (auto `VERCEL_URL`).
+- [x] **GitHub App fix.** App was created with default visibility "Only on this account", which made `https://github.com/apps/joopiter-agents/installations/new/permissions` 404 for the install flow. Changed to "Any account" in App settings. **Worth flagging in upstream docs.**
+- [x] GitHub App installed on `joopiter-eng/joopiter-agents` (the fork itself, used as the test repo). User OAuth account linked, install visible in app UI.
+- [x] **Local agent run end-to-end.** Sandbox provisioned (Vercel sandbox, Philadelphia region), repo cloned, agent listed top-level files, returned 2-sentence project summary. Cost: $0.027 on GPT 5.4 (upstream default). Workflow SDK + Vercel sandbox + AI Gateway path all verified working from local dev.
 
 ## Phase 5 — Vercel deployment (TODO)
 

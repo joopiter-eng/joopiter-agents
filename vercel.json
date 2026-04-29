@@ -5,5 +5,3 @@
   "installCommand": "bun install --frozen-lockfile",
   "outputDirectory": "apps/web/.next"
 }
- "ignoreCommand": "exit 0"
-}
